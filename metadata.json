@@ -1,0 +1,6 @@
+{
+  "name": "ShopeValley",
+  "description": "Multi-vendor local e-commerce marketplace featuring sleek visual design, secure payment simulation, real-time tracking, and personalized recommendation engine.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

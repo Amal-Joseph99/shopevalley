@@ -1,0 +1,93 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Heart, 
+  Share2, 
+  ShoppingCart, 
+  CreditCard, 
+  MapPin, 
+  ChevronUp, 
+  ChevronDown, 
+  Star, 
+  ArrowLeft,
+  Truck,
+  RotateCcw,
+  ShieldCheck,
+  Check,
+  Plus,
+  Minus
+} from 'lucide-react';
+import { Product } from '../types';
+import ProductCard, { formatINR } from './ProductCard';
+
+interface ProductDetailViewProps {
+  product: Product;
+  allProducts: Product[];
+  wishlist: Product[];
+  onToggleWishlist: (product: Product) => void;
+  onAddToCart: (product: Product, quantity?: number, variant?: any, selectedSize?: string, selectedColour?: string) => void;
+  onNavigate: (path: string, options?: any) => void;
+  currentUser: any;
+}
+
+export default function ProductDetailView({
+  product,
+  allProducts,
+  wishlist,
+  onToggleWishlist,
+  onAddToCart,
+  onNavigate,
+  currentUser
+}: ProductDetailViewProps) {
+  // Image gallery state
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+// Accordion states (About, Specs, Important Note, Directions)
+  const [isAboutExpanded, setIsAboutExpanded] = useState(true);
+  const [isSpecsExpanded, setIsSpecsExpanded] = useState(true);
+  const [isImportantNoteExpanded, setIsImportantNoteExpanded] = useState(true);
+  const [isDirectionsExpanded, setIsDirectionsExpanded] = useState(true);
+
+// Pincode checking state
+  const [pincode, setPincode] = useState('');
+  const [pincodeResult, setPincodeResult] = useState<string | null>(null);
+
+const hasVariants = !!(product.variants && product.variants.length > 0);
+  
+  // Extract unique sizes and colours from variants list
+  const availableSizes = hasVariants
+    ? Array.from(new Set(product.variants?.map((v) => v.size) || []))
+    : ['Free Size'];
+    
+  const availableColours = hasVariants
+    ? Array.from(new Set(product.variants?.map((v) => v.colour) || []))
+    : ['Default'];
+
+// Size and Colour selector states
+  const [selectedSize, setSelectedSize] = useState('Free Size');
+  const [selectedColour, setSelectedColour] = useState('Default');
+
+// Interactive review list state
+  const [reviewsList, setReviewsList] = useState<{
+    id: number;
+    user: string;
+    rating: number;
+    title: string;
+    comment: string;
+    date: string;
+  }[]>([]);
+  const [isWriteReviewOpen, setIsWriteReviewOpen] = useState(false);
+  const [newReview, setNewReview] = useState({ rating: 5, comment: '', user: '' });
+
+// Reset indices & states when product slug changes
+  useEffect(() => {
+    setActiveImageIndex(0);
+    setPincode('');
+    setPincodeResult(null);
+    if (hasVariants) {
+      setSelectedSize(availableSizes[0] || 'Free Size');
+      setSelectedColour(availableColours[0] || 'Default');
+    } else {
+      setSelectedSize('Free Size');
+      setSelectedColour('Default');
+    }
+  }, [product.id, hasVariants
