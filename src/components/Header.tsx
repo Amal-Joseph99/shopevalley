@@ -246,7 +246,7 @@ export default function Header({
           - Row 1 Layout: [ LARGE LOGO ] [ LOCATION ] [ CENTRED SEARCH ] [ ACCOUNT ] [ WISHLIST ] [ CART ]
           ==========================================
       */}
-      <div className="hidden lg:block w-full px-8 py-2 border-b border-slate-900 bg-[#131921]" id="sh_desktop_main_header">
+      <div className="hidden lg:block w-full px-8 py-3 border-b border-slate-800 bg-[#0F1111]" id="sh_desktop_main_header">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-6">
           
           {/* 1. LARGE LOGO AREA - Own dedicated branding section, 2-3x larger, highly visible */}
@@ -257,14 +257,14 @@ export default function Header({
               id="sh_logo_btn_desktop"
               title="Return to CraftValy Home"
             >
-              <div className="bg-gradient-to-tr from-[#2E7D32] to-[#4CAF50] text-white p-2.5 rounded-2xl shadow-lg border border-[#1b5e20] flex items-center justify-center h-12 w-12 transition-transform group-hover:scale-105">
-                <Sparkles className="w-6.5 h-6.5 text-white animate-pulse" />
+              <div className="bg-[#2E7D32] text-white p-2.5 rounded-2xl shadow-lg border border-[#1b5e20] flex items-center justify-center h-12 w-12 transition-transform group-hover:scale-105">
+                <span className="font-black text-lg tracking-tight">SV</span>
               </div>
               <div className="flex flex-col select-none">
-                <span className="font-display font-black text-2xl leading-none tracking-tight text-white flex items-center gap-1">
-                  Craft<span className="text-[#4CAF50]">Valy</span>
+                <span className="font-display font-black text-2xl leading-none tracking-tight text-slate-950 flex items-center gap-1">
+                  Shop<span className="text-[#2E7D32]">Valley</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono tracking-widest font-black uppercase">Local Marketplace</span>
+                <span className="text-[10px] text-slate-500 font-mono tracking-widest font-black uppercase">Local Marketplace</span>
               </div>
             </button>
           </div>
@@ -459,7 +459,7 @@ export default function Header({
             {/* 1. WISHLIST */}
             <button 
               onClick={() => onNavigate('wishlist')}
-              className="group flex items-center gap-2 px-3 py-1.5 hover:ring-1 hover:ring-amber-500/50 hover:bg-white/[0.03] rounded-lg relative cursor-pointer active:scale-95 h-11 select-none text-left"
+              className="group flex items-center gap-2 px-3 py-1.5 hover:ring-1 hover:ring-amber-500/50 hover:bg-slate-100 rounded-lg relative cursor-pointer active:scale-95 h-11 select-none text-left"
               id="sh_wishlist_btn_desktop"
             >
               <Heart className="w-5 h-5 text-white group-hover:text-amber-500 transition-colors" />
@@ -472,7 +472,7 @@ export default function Header({
             {/* 2. CART */}
             <button 
               onClick={() => onNavigate('cart')}
-              className="group flex items-center gap-2.5 px-3 py-1.5 hover:ring-1 hover:ring-amber-500/50 hover:bg-white/[0.03] rounded-lg relative cursor-pointer active:scale-95 h-11 select-none text-left"
+              className="group flex items-center gap-2.5 px-3 py-1.5 hover:ring-1 hover:ring-amber-500/50 hover:bg-slate-100 rounded-lg relative cursor-pointer active:scale-95 h-11 select-none text-left"
               id="sh_cart_btn_desktop"
             >
               <div className="relative shrink-0">
@@ -491,7 +491,7 @@ export default function Header({
             <div className="relative">
               <button 
                 onClick={() => setShowAccountPopover(!showAccountPopover)}
-                className="group flex flex-col justify-center items-start text-left px-3 py-1.5 hover:ring-1 hover:ring-amber-500/50 hover:bg-white/[0.03] rounded-lg transition-all cursor-pointer active:scale-95 h-11 min-w-[130px] select-none"
+                className="group flex flex-col justify-center items-start text-left px-3 py-1.5 hover:ring-1 hover:ring-amber-500/50 hover:bg-slate-100 rounded-lg transition-all cursor-pointer active:scale-95 h-11 min-w-[130px] select-none"
                 id="sh_accounts_btn_desktop"
               >
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
@@ -622,10 +622,10 @@ export default function Header({
             id="sh_tablet_logo"
           >
             <div className="bg-[#2E7D32] text-white p-2 rounded-xl shadow border border-[#1b5e20] flex items-center justify-center h-10 w-10">
-              <Sparkles className="w-5 h-5 text-white" />
+              <span className="font-black text-base">SV</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-display font-black text-lg leading-tight text-white">CraftValy</span>
+              <span className="font-display font-black text-lg leading-tight text-white">ShopeValley</span>
             </div>
           </button>
 
@@ -696,10 +696,10 @@ export default function Header({
             className="flex items-center gap-1.5 cursor-pointer text-left h-9"
           >
             <div className="bg-[#2E7D32] text-white p-1.5 rounded-lg border border-[#1b5e20] flex items-center justify-center h-8 w-8">
-              <Sparkles className="w-4 h-4 text-white" />
+              <span className="font-black text-sm">SV</span>
             </div>
             <span className="font-display font-black text-md leading-none text-white tracking-tight">
-              CraftValy
+              ShopeValley
             </span>
           </button>
 
