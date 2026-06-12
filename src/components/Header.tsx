@@ -253,18 +253,20 @@ export default function Header({
           <div className="flex items-center shrink-0 pr-2" id="sh_desktop_logo_block">
             <button 
               onClick={handleLogoClick}
-              className="flex items-center gap-2.5 group transition-transform active:scale-95 cursor-pointer text-left"
+              className="flex items-center gap-3 group transition-transform active:scale-95 cursor-pointer text-left"
               id="sh_logo_btn_desktop"
-              title="Return to CraftValy Home"
+              title="Return to Shop Valley Home"
             >
-              <div className="bg-[#2E7D32] text-white p-2.5 rounded-2xl shadow-lg border border-[#1b5e20] flex items-center justify-center h-12 w-12 transition-transform group-hover:scale-105">
-                <span className="font-black text-lg tracking-tight">SV</span>
-              </div>
+              <img
+                src="/logo.png"
+                alt="Shop Valley"
+                className="h-12 w-12 rounded-2xl border border-[#1b5e20] bg-white object-cover shadow-lg"
+              />
               <div className="flex flex-col select-none">
-                <span className="font-display font-black text-2xl leading-none tracking-tight text-slate-950 flex items-center gap-1">
+                <span className="font-display font-black text-2xl leading-none tracking-tight text-white flex items-center gap-1">
                   Shop<span className="text-[#2E7D32]">Valley</span>
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono tracking-widest font-black uppercase">Local Marketplace</span>
+                <span className="text-[10px] text-slate-300 font-mono tracking-widest font-black uppercase">Local Marketplace</span>
               </div>
             </button>
           </div>
@@ -695,9 +697,11 @@ export default function Header({
             onClick={handleLogoClick} 
             className="flex items-center gap-1.5 cursor-pointer text-left h-9"
           >
-            <div className="bg-[#2E7D32] text-white p-1.5 rounded-lg border border-[#1b5e20] flex items-center justify-center h-8 w-8">
-              <span className="font-black text-sm">SV</span>
-            </div>
+              <img
+              src="/logo.png"
+              alt="Shop Valley"
+              className="h-8 w-8 rounded-xl border border-[#1b5e20] bg-white object-cover"
+            />
             <span className="font-display font-black text-md leading-none text-white tracking-tight">
               ShopeValley
             </span>

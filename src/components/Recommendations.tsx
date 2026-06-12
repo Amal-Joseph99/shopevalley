@@ -1,6 +1,5 @@
 import { Eye } from 'lucide-react';
 import { Product } from '../types';
-import { PRODUCTS } from '../data';
 import ProductCard from './ProductCard';
 
 interface RecommendationsProps {
@@ -24,18 +23,11 @@ export default function Recommendations({
   const getPersonalizedRecommendations = (): { product: Product; reason: string }[] => {
     const limit = 8; // Change to 8 to support 2 rows of 4 columns
     if (!viewHistory || viewHistory.length === 0) {
-      // Fallback: Top premium items
-      return PRODUCTS
-        .filter(p => p.rating >= 4.5)
-        .slice(0, limit)
-        .map(p => ({
-          product: p,
-          reason: 'Bestseller in Local Workshops'
-        }));
+      return [];
     }
 
     // Retrieve viewed products
-    const viewedProducts = PRODUCTS.filter(p => viewHistory.includes(p.id));
+    const viewedProducts = [];
     
     // Count categories and tags
     const categories: Record<string, number> = {};

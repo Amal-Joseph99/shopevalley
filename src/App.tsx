@@ -42,14 +42,14 @@ export default function App() {
   const { route, navigate, rawHash } = useHashRouter();
 
   // Core reactive datasets
-  const [products, setProducts] = useState<Product[]>(() => {
+  const [products, setProducts] = useState<Product<Product[]>>(() => {
     const cached = localStorage.getItem('sv_products');
-    return cached ? JSON.parse(cached) : PRODUCTS;
+    return cached ? JSON.parse(cached) : [];
   });
 
   const [vendors, setVendors] = useState<Vendor[]>(() => {
     const cached = localStorage.getItem('sv_vendors');
-    return cached ? JSON.parse(cached) : VENDORS;
+    return cached ? JSON.parse(cached) : [];
   });
 
   // User States
@@ -673,24 +673,7 @@ export default function App() {
         {route.path === '/' && !route.categoryName ? (
           <div className="space-y-4" id="sh_homepage_workspace">
 
-            {/* Sec 2: BELOW CATEGORY, THE FIRST CLEAN PROMOTIONAL BANNER */}
-            <section className="w-full bg-[#f8fafc] border-y border-slate-200/40 py-2.5 my-1" id="sh_banner_ad_one">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6">
-                <div 
-                  onClick={() => navigate('category/Electronics')}
-                  className="relative w-full h-[120px] md:h-[180px] lg:h-[220px] rounded-[14px] overflow-hidden bg-slate-100 cursor-pointer group"
-                >
-                  <img 
-                    src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1400&auto=format&fit=crop&q=80" 
-                    alt="Handcarved Premium Wood Furnishings" 
-                    className="w-full h-full object-cover select-none transition-transform duration-700 ease-out group-hover:scale-[1.01]"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Sec 3: Personalized For You (re-positioned & styled to match attached mockup) */}
+            {/* Sec 3: Personalized product recommendations */}
             <div id="sh_personalized_recs_section_mount" className="my-1">
               <Recommendations 
                 viewHistory={viewHistory} 
@@ -742,22 +725,6 @@ export default function App() {
               );
             })()}
 
-            {/* Sec 5: SECOND IMAGE ADS SECTION */}
-            <section className="w-full bg-[#f8fafc] border-y border-slate-200/40 py-2.5 my-1" id="sh_banner_ad_two">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6">
-                <div 
-                  onClick={() => navigate('category/Fashion')}
-                  className="relative w-full h-[120px] md:h-[180px] lg:h-[220px] rounded-[14px] overflow-hidden bg-slate-100 cursor-pointer group"
-                >
-                  <img 
-                    src="https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=1400&auto=format&fit=crop&q=80" 
-                    alt="Premium artisan stoneware fashion styles" 
-                    className="w-full h-full object-cover select-none transition-transform duration-700 ease-out group-hover:scale-[1.01]"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              </div>
-            </section>
 
             {/* Sec 6: Special Offers Section */}
             {(() => {
