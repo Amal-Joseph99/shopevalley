@@ -3,6 +3,7 @@ import { Product } from '../types';
 import ProductCard from './ProductCard';
 
 interface RecommendationsProps {
+  products: Product[];
   viewHistory: string[]; // Product IDs
   onProductClick: (category: string, slug: string) => void;
   onAddToCart: (product: Product) => void;
@@ -12,6 +13,7 @@ interface RecommendationsProps {
 }
 
 export default function Recommendations({ 
+  products,
   viewHistory, 
   onProductClick, 
   onAddToCart, 
@@ -27,7 +29,7 @@ export default function Recommendations({
     }
 
     // Retrieve viewed products
-    const viewedProducts = [];
+    const viewedProducts = products.filter(p => viewHistory.includes(p.id));
     
     // Count categories and tags
     const categories: Record<string, number> = {};
@@ -41,7 +43,7 @@ export default function Recommendations({
     });
 
     // Find recommended products excluding viewed items
-    const recommendations = PRODUCTS
+    const recommendations = products
       .filter(p => !viewHistory.includes(p.id))
       .map(p => {
         let score = 0;
@@ -72,7 +74,7 @@ export default function Recommendations({
     // If we have less than limit recommendations, pad with high rated ones
     if (recommendations.length < limit) {
       const existingIds = [...recommendations.map(r => r.product.id), ...viewHistory];
-      const paddings = PRODUCTS
+      const paddings = products
         .filter(p => !existingIds.includes(p.id))
         .sort((a,b) => b.rating - a.rating)
         .slice(0, limit - recommendations.length)

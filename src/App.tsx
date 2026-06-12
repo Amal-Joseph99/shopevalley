@@ -16,6 +16,7 @@ import ProfilePage from './components/ProfilePage';
 import AddressesPage from './components/AddressesPage';
 import MyOrdersPage from './components/MyOrdersPage';
 import NotificationsPage from './components/NotificationsPage';
+import { supabase, getCurrentUserProfile } from './lib/supabaseClient';
 import { PRODUCTS, VENDORS } from './data';
 import { Product, Vendor, CartItem, Order, LoggedUser, ProductVariant } from './types';
 import { 
@@ -42,7 +43,7 @@ export default function App() {
   const { route, navigate, rawHash } = useHashRouter();
 
   // Core reactive datasets
-  const [products, setProducts] = useState<Product<Product[]>>(() => {
+  const [products, setProducts] = useState<Product[]>(() => {
     const cached = localStorage.getItem('sv_products');
     return cached ? JSON.parse(cached) : [];
   });
@@ -303,6 +304,64 @@ export default function App() {
       localStorage.removeItem('sv_current_user');
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    // 1. Initial auth sync from Supabase
+    const syncAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setCurrentUser(null);
+        } else {
+          const profile = await getCurrentUserProfile();
+          if (profile) {
+            setCurrentUser({
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              phoneNumber: profile.phone,
+              role: profile.role,
+              email_verified: profile.email_verified,
+              addresses: [],
+              created_at: profile.created_at
+            });
+          } else {
+            setCurrentUser(null);
+          }
+        }
+      } catch (err) {
+        console.error("Auth sync error", err);
+      }
+    };
+    syncAuth();
+
+    // 2. Listen for auth changes in real-time
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        if (session?.user) {
+          const profile = await getCurrentUserProfile();
+          if (profile) {
+            setCurrentUser({
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              phoneNumber: profile.phone,
+              role: profile.role,
+              email_verified: profile.email_verified,
+              addresses: [],
+              created_at: profile.created_at
+            });
+          }
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const normalized = route.path || '/';
@@ -676,6 +735,7 @@ export default function App() {
             {/* Sec 3: Personalized product recommendations */}
             <div id="sh_personalized_recs_section_mount" className="my-1">
               <Recommendations 
+                products={products}
                 viewHistory={viewHistory} 
                 onProductClick={(cat, sl) => navigate(`category/${cat}/${sl}`)}
                 onAddToCart={handleAddToCartWithAuth}
