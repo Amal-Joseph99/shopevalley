@@ -76,9 +76,13 @@ export async function verifyOTP(email: string, otp: string, otpType: 'registrati
 
 export async function registerBuyer(email: string, name: string, password: string, phone?: string): Promise<AuthResponse> {
   try {
+    // Store name/phone in user_metadata so it's available after OTP verification
     const { data, error } = await supabase.auth.signUp({
       email: email.toLowerCase(),
-      password
+      password,
+      options: {
+        data: { name, phone: phone || null, role: 'BUYER' }
+      }
     });
 
     if (error) {
@@ -89,6 +93,8 @@ export async function registerBuyer(email: string, name: string, password: strin
       return { success: false, message: 'Registration failed', error: 'SIGNUP_FAILED' };
     }
 
+    // Best-effort profile creation (may fail due to RLS on unconfirmed users — that's OK,
+    // the profile will be guaranteed to exist after OTP verification)
     await supabase.from('profiles').insert({
       id: data.user.id,
       email: email.toLowerCase(),
@@ -96,7 +102,7 @@ export async function registerBuyer(email: string, name: string, password: strin
       phone: phone || null,
       role: 'BUYER',
       email_verified: false
-    });
+    }).then(() => {});
 
     // Supabase Auth automatically sends the OTP email on signUp
     return {
@@ -133,14 +139,40 @@ export async function verifyRegistrationOTP(email: string, otp: string): Promise
       return { success: false, message: error.message || 'Verification failed', error: 'INVALID_OTP' };
     }
 
-    // Mark profile as email verified
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ email_verified: true })
-      .eq('email', emailLower);
+    // Verification succeeded — user now has a confirmed session
+    const user = data.user;
+    if (!user) {
+      return { success: false, message: 'Verification failed — no user returned', error: 'NO_USER' };
+    }
 
-    if (profileError) {
-      return { success: false, message: 'Failed to verify email', error: profileError.message };
+    // Guarantee profile exists (it may have failed during registration due to RLS)
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      // Create the profile now using metadata stored during signUp
+      const meta = user.user_metadata || {};
+      const { error: insertError } = await supabase.from('profiles').insert({
+        id: user.id,
+        email: emailLower,
+        name: meta.name || '',
+        phone: meta.phone || null,
+        role: meta.role || 'BUYER',
+        email_verified: true
+      });
+
+      if (insertError) {
+        return { success: false, message: 'Account verified but profile creation failed. Please contact support.', error: insertError.message };
+      }
+    } else {
+      // Profile exists — mark as verified
+      await supabase
+        .from('profiles')
+        .update({ email_verified: true })
+        .eq('id', user.id);
     }
 
     return { success: true, message: 'Email verified successfully', data };

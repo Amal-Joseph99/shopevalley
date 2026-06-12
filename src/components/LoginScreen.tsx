@@ -213,7 +213,6 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
           setOtpValue(['', '', '', '', '', '']);
           setOtpTimer(45);
           setCanResend(false);
-          // Focus first input
           setTimeout(() => document.getElementById('otp-input-0')?.focus(), 100);
         }
         setOtpError(response.message || 'Verification failed');
@@ -221,13 +220,38 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
         return;
       }
 
-      // Verification succeeded — Supabase session is already active from verifyOtp
-      // Try auto-login with password for a clean session
-      const loginResponse = await loginUser(otpEmail, regPassword);
+      // Verification succeeded — verifyOtp already created a valid session
+      // Fetch the profile using the active session
+      const { data: { user } } = await supabase.auth.getUser();
 
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile) {
+          const loggedUser: LoggedUser = {
+            id: profile.id,
+            name: profile.name,
+            email: profile.email,
+            phoneNumber: profile.phone,
+            role: profile.role,
+            email_verified: profile.email_verified,
+            addresses: [],
+            created_at: profile.created_at
+          };
+          onLoginSuccess(loggedUser);
+          onNavigate('');
+          return;
+        }
+      }
+
+      // Fallback: try password login if session-based fetch didn't work
+      const loginResponse = await loginUser(otpEmail, regPassword);
       if (loginResponse.success) {
         const { profile } = loginResponse.data;
-
         const loggedUser: LoggedUser = {
           id: profile.id,
           name: profile.name,
@@ -238,37 +262,13 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
           addresses: [],
           created_at: profile.created_at
         };
-
         onLoginSuccess(loggedUser);
         onNavigate('');
       } else {
-        // verifyOtp already created a session, use it to fetch profile
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-          
-          if (profile) {
-            const loggedUser: LoggedUser = {
-              id: profile.id,
-              name: profile.name,
-              email: profile.email,
-              phoneNumber: profile.phone,
-              role: profile.role,
-              email_verified: profile.email_verified,
-              addresses: [],
-              created_at: profile.created_at
-            };
-            onLoginSuccess(loggedUser);
-            onNavigate('');
-            return;
-          }
-        }
-        setOtpError('Email verified but auto-login failed. Please log in manually.');
+        // Both methods failed — send user to login page
+        setOtpError('Email verified successfully! Please log in with your credentials.');
         setIsVerifyingOtp(false);
+        setTimeout(() => setViewState('login'), 2000);
       }
     } catch (err: any) {
       setOtpError(err.message || 'Verification error');
