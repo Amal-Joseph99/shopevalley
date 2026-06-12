@@ -515,25 +515,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#fdfdfd] text-slate-900 flex flex-col justify-between" id="sv_app_root">
       
-      {/* 1. MOCK URL BROWSER BAR FOR DEEP-LINKING VISUALIZATION */}
-      {route.path !== 'admin' && (
-        <div className="bg-slate-100 border-b border-rose-300 py-1 px-4 text-center" id="sh_mock_browser_address">
-          <div className="max-w-4xl mx-auto flex items-center gap-2 bg-white rounded-xl py-1 px-3 border border-slate-300 text-xs text-slate-500 shadow-inner">
-            <div className="flex gap-1.5 shrink-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />
-              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" />
-              <span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />
-            </div>
-            <span className="font-bold text-slate-400 shrink-0 font-mono text-[10px]">Secure ESG Link:</span>
-            <div className="flex-grow select-all font-mono font-medium text-left truncate text-slate-800">
-              https://shopevalley.com/{rawHash || '#/'}
-            </div>
-            <span className="text-[9px] bg-slate-100 border border-slate-200 text-slate-500 font-mono font-bold px-1.5 py-0.5 rounded uppercase">
-              URL PERSISTED
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Mock URL bar removed per user request */}
 
       {/* 2. Global Header Navigation Modules */}
       {route.path !== 'admin' && (
