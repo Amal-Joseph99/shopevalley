@@ -484,8 +484,9 @@ export default function AdminPanel({
           
           <button 
             onClick={() => {
-              onLogout();
-              onNavigate('');
+              if (window.confirm('Are you sure you want to logout?')) {
+                onLogout();
+              }
             }}
             className="w-full py-2.5 px-4 rounded-xl text-left font-semibold text-[#D11A2A] hover:bg-red-50 text-xs flex items-center gap-3 transition-colors"
           >

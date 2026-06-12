@@ -234,7 +234,13 @@ export default function App() {
   const handleProtectedNavigate = (path: string, options?: { page?: number; q?: string }) => {
     const normalized = path.replace(/^#\/?/, '');
 
-    // Block non-logged-in users from buyer-only and admin-only pages
+    // Admin users can ONLY access the admin dashboard
+    if (currentUser?.role === 'ADMIN' && normalized !== 'admin') {
+      navigate('admin');
+      return;
+    }
+
+    // Block non-logged-in users from protected pages
     if (!currentUser && !isGuestAllowedPath(normalized)) {
       showAuthDialog(
         'Signup Required',
@@ -364,6 +370,12 @@ export default function App() {
 
   useEffect(() => {
     const normalized = route.path || '/';
+
+    // Admin users can ONLY access admin dashboard
+    if (currentUser?.role === 'ADMIN' && normalized !== 'admin') {
+      navigate('admin');
+      return;
+    }
 
     // Redirect guests away from protected pages
     if (!currentUser && !isGuestAllowedPath(normalized)) {
@@ -1205,8 +1217,8 @@ export default function App() {
             
             {/* Column 1: Brand Info & Socials */}
             <div className="space-y-4 pr-4">
-              <div className="flex items-center gap-1.5 font-bold text-2xl tracking-tighter text-white">
-                <Sparkles className="w-5 h-5 text-amber-500" />
+              <div className="flex items-center gap-2 text-white">
+                <img src="/logo.png" alt="ShopeValley" className="h-8 w-8 rounded-lg object-contain" />
                 <span className="font-extrabold uppercase text-lg tracking-tight">
                   Shope<span className="text-amber-500 font-black">Valley</span>
                 </span>

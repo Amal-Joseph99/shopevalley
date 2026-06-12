@@ -243,8 +243,8 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
         
         {/* Brand Header */}
         <div className="text-center">
-          <div className="mx-auto h-12 w-12 bg-slate-950 rounded-xl flex items-center justify-center shadow-md">
-            <Sparkles className="h-6 w-6 text-amber-400" />
+          <div className="mx-auto h-14 w-14 rounded-xl flex items-center justify-center shadow-md overflow-hidden">
+            <img src="/logo.png" alt="ShopeValley" className="h-full w-full object-contain" />
           </div>
           <h2 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
             {viewState === 'loading' && 'Signing in...'}

@@ -576,9 +576,10 @@ export default function Header({
                     {currentUser ? (
                       <button 
                         onClick={() => {
-                          onLogout();
                           setShowAccountPopover(false);
-                          onNavigate('');
+                          if (window.confirm('Are you sure you want to logout?')) {
+                            onLogout();
+                          }
                         }}
                         className="w-full h-12 px-4 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-extrabold text-xs flex items-center gap-3.5 transition-colors rounded-lg cursor-pointer"
                       >
@@ -623,9 +624,7 @@ export default function Header({
             className="flex items-center gap-2 cursor-pointer text-left"
             id="sh_tablet_logo"
           >
-            <div className="bg-[#2E7D32] text-white p-2 rounded-xl shadow border border-[#1b5e20] flex items-center justify-center h-10 w-10">
-              <span className="font-black text-base">SV</span>
-            </div>
+            <img src="/logo.png" alt="ShopeValley" className="h-10 w-10 rounded-xl object-contain" />
             <div className="flex flex-col">
               <span className="font-display font-black text-lg leading-tight text-white">ShopeValley</span>
             </div>
@@ -1156,9 +1155,10 @@ export default function Header({
                 {currentUser ? (
                   <button
                     onClick={() => {
-                      onLogout();
                       setMobileMenuOpen(false);
-                      onNavigate('');
+                      if (window.confirm('Are you sure you want to logout?')) {
+                        onLogout();
+                      }
                     }}
                     className="w-full h-11 px-3.5 hover:bg-rose-50 text-rose-600 font-bold text-xs flex items-center gap-3 transition-colors cursor-pointer mt-2"
                   >
