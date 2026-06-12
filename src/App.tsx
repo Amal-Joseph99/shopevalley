@@ -8,7 +8,7 @@ import Recommendations from './components/Recommendations';
 import ProductCard from './components/ProductCard';
 import CartAndCheckout from './components/CartAndCheckout';
 import OrderTracker from './components/OrderTracker';
-import VendorPortal from './components/VendorPortal';
+
 import LoginScreen from './components/LoginScreen';
 import AdminPanel from './components/AdminPanel';
 import ProductDetailView from './components/ProductDetailView';
@@ -118,7 +118,7 @@ export default function App() {
   };
 
   const isAdminOnlyPath = (path: string) => {
-    return path === 'admin' || path === 'vendor-portal';
+    return path === 'admin';
   };
 
   const handleProtectedNavigate = (path: string, options?: { page?: number; q?: string }) => {
@@ -426,9 +426,7 @@ export default function App() {
     setProducts((prev) => [newP, ...prev]);
   };
 
-  const handleAddVendor = (newV: Vendor) => {
-    setVendors((prev) => [...prev, newV]);
-  };
+
 
   const handleDeleteProduct = (prodId: string) => {
     setProducts((prev) => prev.filter(p => p.id !== prodId));
@@ -798,17 +796,7 @@ export default function App() {
           />
         ) : null}
 
-        {/* VIEW 6: THE MULTI-VENDOR MERCHANT REGISTRATION AND CATALOG portal MODULE */}
-        {route.path === 'vendor-portal' ? (
-          <VendorPortal 
-            vendors={vendors}
-            products={products}
-            onAddProduct={handleAddProduct}
-            onAddVendor={handleAddVendor}
-            onDeleteProduct={handleDeleteProduct}
-            onNavigate={handleProtectedNavigate}
-          />
-        ) : null}
+
 
         {/* VIEW 9: REGISTERED BUYERS AND ADMIN AUTHENTICATION WORKSPACE */}
         {route.path === 'login' || route.path === 'register' || route.path === 'verify-otp' ? (

@@ -56,8 +56,6 @@ export function parseHash(hash: string): RouteState {
     routeState.path = 'shipping-address';
   } else if (segments[0] === 'cart') {
     routeState.path = 'cart';
-  } else if (segments[0] === 'vendor-portal') {
-    routeState.path = 'vendor-portal';
   } else if (segments[0] === 'wishlist') {
     routeState.path = 'wishlist';
   } else if (segments[0] === 'login') {
