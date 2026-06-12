@@ -204,6 +204,11 @@ export default function App() {
     if (path.startsWith('category/') || path.startsWith('section/') || path.startsWith('vendor/')) {
       return true;
     }
+    // Legal, About, Contact pages are accessible by guests
+    const guestStaticPages = ['about-us', 'contact-us', 'privacy-policy', 'terms-of-service', 'refund-policy', 'cookie-policy', 'security'];
+    if (guestStaticPages.includes(path)) {
+      return true;
+    }
     return false;
   };
 
@@ -229,16 +234,7 @@ export default function App() {
   const handleProtectedNavigate = (path: string, options?: { page?: number; q?: string }) => {
     const normalized = path.replace(/^#\/?/, '');
 
-    if (currentUser?.role === 'ADMIN' && normalized !== 'admin') {
-      showAuthDialog(
-        'Admin Access Only',
-        'Admins may only use the admin dashboard. Please switch to an admin dashboard workflow.',
-        'admin',
-        'Go to Admin'
-      );
-      return;
-    }
-
+    // Block non-logged-in users from buyer-only and admin-only pages
     if (!currentUser && !isGuestAllowedPath(normalized)) {
       showAuthDialog(
         'Signup Required',
@@ -249,18 +245,14 @@ export default function App() {
       return;
     }
 
-    if (currentUser?.role === 'BUYER' && isAdminOnlyPath(normalized)) {
+    // Block non-admin users from admin-only pages
+    if (currentUser && currentUser.role !== 'ADMIN' && isAdminOnlyPath(normalized)) {
       showAuthDialog(
         'Admin Page Restricted',
-        'Buyer accounts cannot access the admin area.',
+        'Only admin accounts can access the admin area.',
         '',
         'Close'
       );
-      return;
-    }
-
-    if (currentUser?.role === 'ADMIN' && normalized === 'login') {
-      navigate('admin');
       return;
     }
 
@@ -295,6 +287,13 @@ export default function App() {
     }
 
     handleAddToCart(product, qty, variant, selectedSize, selectedColour);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    localStorage.removeItem('sv_current_user');
+    navigate('');
   };
 
   useEffect(() => {
@@ -366,17 +365,7 @@ export default function App() {
   useEffect(() => {
     const normalized = route.path || '/';
 
-    if (currentUser?.role === 'ADMIN' && normalized !== 'admin') {
-      showAuthDialog(
-        'Admin Dashboard Only',
-        'Admin users can only use the admin dashboard.',
-        'admin',
-        'Go to Admin'
-      );
-      navigate('admin');
-      return;
-    }
-
+    // Redirect guests away from protected pages
     if (!currentUser && !isGuestAllowedPath(normalized)) {
       showAuthDialog(
         'Signup Required',
@@ -388,10 +377,11 @@ export default function App() {
       return;
     }
 
-    if (currentUser?.role === 'BUYER' && isAdminOnlyPath(normalized)) {
+    // Block non-admin users from admin-only pages
+    if (currentUser && currentUser.role !== 'ADMIN' && isAdminOnlyPath(normalized)) {
       showAuthDialog(
         'Admin Restricted',
-        'Buyer accounts cannot enter the admin console.',
+        'Only admin accounts can access the admin dashboard.',
         '',
         'Close'
       );
@@ -590,7 +580,7 @@ export default function App() {
           selectedCategoryFilter={selectedCategoryFilter}
           setSelectedCategoryFilter={setSelectedCategoryFilter}
           currentUser={currentUser}
-          onLogout={() => setCurrentUser(null)}
+          onLogout={handleLogout}
         />
       )}
 
@@ -940,7 +930,7 @@ export default function App() {
             orders={orders}
             onNavigate={handleProtectedNavigate}
             currentUser={currentUser}
-            onLogout={() => setCurrentUser(null)}
+            onLogout={handleLogout}
             onUpdateProducts={setProducts}
             onUpdateOrders={setOrders}
           />
