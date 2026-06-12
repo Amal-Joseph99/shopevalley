@@ -98,8 +98,7 @@ export async function registerBuyer(email: string, name: string, password: strin
       email_verified: false
     });
 
-    await sendOTPEmail(email.toLowerCase(), 'registration');
-
+    // Supabase Auth automatically sends the OTP email on signUp
     return {
       success: true,
       message: 'Registration successful. OTP sent to your email.',
@@ -112,20 +111,28 @@ export async function registerBuyer(email: string, name: string, password: strin
 
 export async function verifyRegistrationOTP(email: string, otp: string): Promise<AuthResponse> {
   try {
-    if (!await verifyOTP(email.toLowerCase(), otp, 'registration')) {
-      return { success: false, message: 'Invalid or expired OTP', error: 'INVALID_OTP' };
+    // Use Supabase Auth's built-in OTP verification (the code sent via email on signUp)
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.toLowerCase(),
+      token: otp,
+      type: 'signup'
+    });
+
+    if (error) {
+      return { success: false, message: 'Invalid or expired OTP. Please check the code from your email.', error: 'INVALID_OTP' };
     }
 
-    const { error } = await supabase
+    // Mark profile as email verified
+    const { error: profileError } = await supabase
       .from('profiles')
       .update({ email_verified: true })
       .eq('email', email.toLowerCase());
 
-    if (error) {
-      return { success: false, message: 'Failed to verify email', error: error.message };
+    if (profileError) {
+      return { success: false, message: 'Failed to verify email', error: profileError.message };
     }
 
-    return { success: true, message: 'Email verified successfully' };
+    return { success: true, message: 'Email verified successfully', data };
   } catch (err: any) {
     return { success: false, message: err.message || 'Verification error', error: 'VERIFY_ERROR' };
   }

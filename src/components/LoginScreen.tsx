@@ -15,11 +15,10 @@ import {
 } from 'lucide-react';
 import { LoggedUser } from '../types';
 import {
+  supabase,
   registerBuyer,
   verifyRegistrationOTP,
-  loginUser,
-  sendOTPEmail,
-  generateOTP
+  loginUser
 } from '../lib/supabaseClient';
 
 interface LoginScreenProps {
@@ -70,8 +69,11 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
 
   const handleResendOtp = async () => {
     try {
-      const otp = generateOTP();
-        await sendOTPEmail(otpEmail, 'registration');
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: otpEmail.toLowerCase()
+      });
+      if (error) throw error;
       setOtpTimer(45);
       setCanResend(false);
       setOtpError('');
