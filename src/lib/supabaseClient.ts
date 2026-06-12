@@ -196,14 +196,33 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
       return { success: false, message: 'Login failed', error: 'NO_USER' };
     }
 
-    const { data: profile, error: profileError } = await supabase
+    // Fetch profile — use maybeSingle to avoid 406 on 0 rows
+    let { data: profile } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profile) {
-      return { success: false, message: 'Profile not found', error: profileError?.message || 'PROFILE_NOT_FOUND' };
+    // If profile doesn't exist, create it from user_metadata (handles edge cases)
+    if (!profile) {
+      const meta = data.user.user_metadata || {};
+      const { data: newProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          email: email.toLowerCase(),
+          name: meta.name || email.split('@')[0],
+          phone: meta.phone || null,
+          role: meta.role || 'BUYER',
+          email_verified: !!data.user.email_confirmed_at
+        })
+        .select('*')
+        .single();
+
+      if (insertError || !newProfile) {
+        return { success: false, message: 'Login succeeded but profile setup failed. Please contact support.', error: insertError?.message || 'PROFILE_CREATE_FAILED' };
+      }
+      profile = newProfile;
     }
 
     return { success: true, message: 'Login successful', data: { user: data.user, profile, session: data.session } };
@@ -228,13 +247,33 @@ export async function getCurrentUserProfile(): Promise<Profile | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: profile, error } = await supabase
+
+    // Fetch profile — use maybeSingle to avoid 406
+    let { data: profile } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .single();
-    if (error || !profile) return null;
-    return profile;
+      .maybeSingle();
+
+    // Auto-create profile if missing (handles edge cases from before the fix)
+    if (!profile) {
+      const meta = user.user_metadata || {};
+      const { data: newProfile } = await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          email: user.email || '',
+          name: meta.name || user.email?.split('@')[0] || '',
+          phone: meta.phone || null,
+          role: meta.role || 'BUYER',
+          email_verified: !!user.email_confirmed_at
+        })
+        .select('*')
+        .single();
+      profile = newProfile;
+    }
+
+    return profile || null;
   } catch (err) {
     return null;
   }
