@@ -71,7 +71,7 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
   const handleResendOtp = async () => {
     try {
       const otp = generateOTP();
-      await sendOTPEmail(otpEmail, otp);
+        await sendOTPEmail(otpEmail, 'registration');
       setOtpTimer(45);
       setCanResend(false);
       setOtpError('');
