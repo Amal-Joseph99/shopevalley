@@ -148,21 +148,7 @@ export default function AdminPanel({
     fetchProducts();
   }, [onUpdateProducts]);
 
-  // Sync category strings from localStorage if updated in CategoryManagement
-  useEffect(() => {
-    const customCats = localStorage.getItem('sv_categories_list');
-    if (customCats) {
-      try {
-        const parsed = JSON.parse(customCats);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const names = parsed.map((c: any) => c.name);
-          setCategories(names);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, [activeTab]);
+
 
   // Local/Interactive States for managing entity edits
   const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -179,32 +165,20 @@ export default function AdminPanel({
   });
   const [newCatName, setNewCatName] = useState('');
 
-  // Inbox interactive state mock messages
-  const [inboxMessages, setInboxMessages] = useState([
-    { id: 'msg_1', sender: 'Ripon Ahmed', email: 'ripon@gmail.com', subject: 'Chipped Stoneware Pot Ref', message: 'Hi there, my premium ceramic hand-thrown pot has a tiny hairline crack on the base rim. Can I request a replacement from kiln workshop #4 or should I start a return route?', date: '3 hours ago', replied: false, replyText: '' },
-    { id: 'msg_2', sender: 'Darlene Robertson', email: 'darlene.r@hotmail.com', subject: 'Custom Engraving Charges', message: 'I want to buy the Premium Sandalwood Box for my father-in-laws birthday, and wanted to see if custom initials are laser etched or hot-stamped? Let me know please!', date: '6 hours ago', replied: true, replyText: 'Hello Darlene! We laser etch all custom initials into premium wood fibers for optimal long-term precision.' },
-    { id: 'msg_3', sender: 'Leslie Alexander', email: 'leslie.alex@domain.co', subject: 'Courier Route Denver Radius', message: 'Are shipping dispatches to Boulder covered in standard eco shipments? The slider says 50 miles.', date: '1 day ago', replied: false, replyText: '' },
-    { id: 'msg_4', sender: 'Ralph Edwards', email: 'ralph.edw@gmail.com', subject: 'Bulk Custom corporate orders', message: 'Can you provide wholesale direct discounts for 150 units of the beeswax candles gift pack for winter employee greetings?', date: '2 days ago', replied: false, replyText: '' }
-  ]);
-  const [activeMessageId, setActiveMessageId] = useState<string>('msg_1');
+  // Inbox interactive state
+  const [inboxMessages, setInboxMessages] = useState<any[]>([]);
+  const [activeMessageId, setActiveMessageId] = useState<string>('');
   const [replyInput, setReplyInput] = useState('');
 
   // Accounts state management
-  const [userAccounts, setUserAccounts] = useState([
-    { id: 'u_1', name: 'Robert Fox', email: 'robert.fox@gmail.com', role: 'ADMIN', status: 'Active', purchasesCount: 148, joinDate: 'Jan 24, 2024' },
-    { id: 'u_2', name: 'Ripon Ahmed', email: 'ripon@gmail.com', role: 'BUYER', status: 'Active', purchasesCount: 12, joinDate: 'Feb 12, 2024' },
-    { id: 'u_3', name: 'Darlene Robertson', email: 'darlene.r@hotmail.com', role: 'BUYER', status: 'Active', purchasesCount: 20, joinDate: 'Mar 01, 2024' },
-    { id: 'u_4', name: 'Leslie Alexander', email: 'leslie.alex@domain.co', role: 'BUYER', status: 'Suspended', purchasesCount: 3, joinDate: 'Apr 11, 2024' },
-    { id: 'u_5', name: 'Ralph Edwards', email: 'ralph.edw@gmail.com', role: 'BUYER', status: 'Active', purchasesCount: 8, joinDate: 'May 04, 2024' },
-    { id: 'u_6', name: 'Devon Lane', email: 'devon.lane@outlook.com', role: 'BUYER', status: 'Active', purchasesCount: 0, joinDate: 'Jun 02, 2024' }
-  ]);
+  const [userAccounts, setUserAccounts] = useState<any[]>([]);
 
-  // Ads/Homepage customizations persistent settings
+  // Ads/Homepage customizations
   const [homepageSettings, setHomepageSettings] = useState({
-    storeName: 'CraftValy',
-    tagline: 'Certified Organic Skincare & Custom Handmade Stonewares',
-    bannerImage: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1400&auto=format&fit=crop&q=80',
-    bannerImageTwo: 'https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=1400&auto=format&fit=crop&q=80',
+    storeName: '',
+    tagline: '',
+    bannerImage: '',
+    bannerImageTwo: '',
     primaryColor: '#7c3aed',
     accentColor: '#10b981'
   });
@@ -214,19 +188,19 @@ export default function AdminPanel({
     name: '',
     price: '',
     originalPrice: '',
-    category: 'Electronics',
+    category: '',
     description: '',
-    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
-    stock: '50',
-    vendorName: 'Main Workshop Master',
+    imageUrl: '',
+    stock: '',
+    vendorName: '',
     sku: 'SKU-' + Math.floor(Math.random() * 900000 + 100000)
   });
 
-  // Calculate high-fidelity stats dynamically
-  const salesSum = orders.reduce((sum, o) => sum + (o.total || 0), 0) + 14820; // adding seed baseline
-  const activeOrdersCount = orders.length + 1590; // baseline seed
-  const totalProductsCount = products.length + 130; // baseline seed
-  const totalCustomersCount = userAccounts.length + 1994; // baseline seed
+  // Calculate stats dynamically from real data only
+  const salesSum = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const activeOrdersCount = orders.length;
+  const totalProductsCount = products.length;
+  const totalCustomersCount = userAccounts.length;
 
   const handleUpdateRole = (userId: string, newRole: string) => {
     setUserAccounts(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
@@ -277,7 +251,7 @@ export default function AdminPanel({
       price: priceNum,
       original_price: origPriceNum,
       category: newProd.category,
-      images: [newProd.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'],
+      images: newProd.imageUrl ? [newProd.imageUrl] : [],
       vendor_id: 'v2',
       vendor_name: newProd.vendorName,
       rating: 4.8,
@@ -313,7 +287,7 @@ export default function AdminPanel({
       originalPrice: '',
       category: categories[0] || 'Electronics',
       description: '',
-      imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
+      imageUrl: '',
       stock: '50',
       vendorName: 'Main Workshop Master',
       sku: 'SKU-' + Math.floor(Math.random() * 900000 + 100000)
@@ -506,7 +480,7 @@ export default function AdminPanel({
           {/* Greetings left */}
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-slate-905 text-slate-900 font-sans">
-              Hello, {currentUser?.name || 'Robert Fox'}
+              Hello, {currentUser?.name || 'Admin'}
             </h1>
             <span className="text-xl animate-bounce">👋</span>
           </div>
@@ -542,14 +516,11 @@ export default function AdminPanel({
             <div className="h-10 bg-slate-100 rounded-full w-[1px]" />
 
             <div className="flex items-center gap-3">
-              <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" 
-                alt="Profile photo" 
-                className="w-9 h-9 rounded-full object-cover border border-[#EBEFF5]"
-                referrerPolicy="no-referrer"
-              />
+              <div className="w-10 h-10 rounded-full bg-[#7c3aed] flex items-center justify-center text-white font-bold text-sm">
+                  {currentUser?.name?.charAt(0)?.toUpperCase() || 'A'}
+                </div>
               <div className="hidden lg:block text-left text-xs leading-none">
-                <p className="font-bold text-slate-900">{currentUser?.name || 'Robert Fox'}</p>
+                <p className="font-bold text-slate-900">{currentUser?.name || 'Admin'}</p>
                 <span className="text-[10px] text-slate-400 mt-0.5 inline-block capitalize font-mono">{currentUser?.role || 'ADMIN'} Privileges</span>
               </div>
               <ChevronDown className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-900" />
@@ -731,13 +702,13 @@ export default function AdminPanel({
                   {/* Vertical bar grid */}
                   <div className="h-64 flex justify-between items-end gap-2.5 pt-4" id="bar_chart_views_system">
                     {[
-                      { l: 'Sun', thisW: 65, lastW: 80 },
-                      { l: 'Mon', thisW: 80, lastW: 55 },
-                      { l: 'Tue', thisW: 40, lastW: 45 },
-                      { l: 'Wed', thisW: 90, lastW: 75 },
-                      { l: 'Thu', thisW: 55, lastW: 60 },
-                      { l: 'Fri', thisW: 100, lastW: 85 },
-                      { l: 'Sat', thisW: 70, lastW: 95 }
+                      { l: 'Sun', thisW: 0, lastW: 0 },
+                      { l: 'Mon', thisW: 0, lastW: 0 },
+                      { l: 'Tue', thisW: 0, lastW: 0 },
+                      { l: 'Wed', thisW: 0, lastW: 0 },
+                      { l: 'Thu', thisW: 0, lastW: 0 },
+                      { l: 'Fri', thisW: 0, lastW: 0 },
+                      { l: 'Sat', thisW: 0, lastW: 0 }
                     ].map((item, idx) => (
                       <div key={idx} className="flex flex-col items-center flex-grow space-y-1.5 h-full justify-end">
                         <div className="flex items-end gap-1.5 h-44 w-full justify-center">
@@ -790,37 +761,11 @@ export default function AdminPanel({
                       </thead>
                       <tbody className="divide-y divide-[#F4F6FB] text-slate-700 font-medium">
                         {orders.length === 0 ? (
-                          // Seed rows to match exactly user screenshot
-                          (() => {
-                            const seeds = [
-                              { id: '#202394', name: 'Ripon Ahmed', item: 'Premium Sandalwood Glow Serum', price: '$22.36', date: '4 Jan 24', status: 'Completed', img: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=100&auto=format&fit=crop&q=80' },
-                              { id: '#202395', name: 'Darlene Robertson', item: 'Wembley Karaoke Speaker System', price: '$14.67', date: '5 Jan 24', status: 'Pending', img: 'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=100&auto=format&fit=crop&q=80' },
-                              { id: '#202396', name: 'Leslie Alexander', item: 'Bespoke Ceramic Teacup Pair', price: '$35.20', date: '5 Jan 24', status: 'Completed', img: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=100&auto=format&fit=crop&q=80' },
-                              { id: '#202397', name: 'Ralph Edwards', item: 'Glazed Stoneware Clay Bowl', price: '$24.00', date: '6 Jan 24', status: 'Completed', img: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=100&auto=format&fit=crop&q=80' },
-                              { id: '#202398', name: 'Ronald Richards', item: 'Hand-Cut Leather Wallet Slim', price: '$18.90', date: '6 Jan 24', status: 'Pending', img: 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=100&auto=format&fit=crop&q=80' }
-                            ];
-                            return seeds.map((sd, i) => (
-                              <tr key={i} className="hover:bg-slate-50/50">
-                                <td className="py-3 px-1 flex items-center gap-2.5">
-                                  <img src={sd.img} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" referrerPolicy="no-referrer" />
-                                  <span className="font-bold text-slate-800 truncate max-w-[120px]">{sd.item}</span>
-                                </td>
-                                <td className="py-3 px-1 font-mono font-bold text-slate-400">{sd.id}</td>
-                                <td className="py-3 px-1 text-slate-900 font-bold">{sd.name}</td>
-                                <td className="py-3 px-1 text-slate-400 text-[10px] font-mono">{sd.date}</td>
-                                <td className="py-3 px-1 text-slate-900 font-mono font-black">{sd.price}</td>
-                                <td className="py-3 px-1">
-                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                    sd.status === 'Completed' 
-                                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                                      : 'bg-amber-50 text-amber-600 border-amber-100'
-                                  }`}>
-                                    {sd.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            ));
-                          })()
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-slate-400 text-sm font-medium">
+                              No orders yet
+                            </td>
+                          </tr>
                         ) : (
                           orders.slice(0, 5).map((o, idx) => (
                             <tr key={o.id} className="hover:bg-slate-50/50">
@@ -863,32 +808,33 @@ export default function AdminPanel({
                   </div>
 
                   <div className="space-y-4">
-                    {[
-                      { name: 'Jeans & Denim', pct: 75, color: 'bg-indigo-500' },
-                      { name: 'Craft Jacket', pct: 90, color: 'bg-amber-500' },
-                      { name: 'Sweater & Stonewares', pct: 80, color: 'bg-red-500' },
-                      { name: 'Bespoke T-Shirt', pct: 60, color: 'bg-emerald-500' },
-                      { name: 'Woolen Cap', pct: 50, color: 'bg-blue-500' }
-                    ].map((bar, idx) => (
-                      <div key={idx} className="space-y-1.5 text-left">
-                        <div className="flex justify-between items-center text-xs font-bold font-sans">
-                          <span className="text-slate-700">{bar.name}</span>
-                          <span className="text-slate-900 font-mono">{bar.pct}%</span>
-                        </div>
-                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div 
-                            style={{ width: `${bar.pct}%` }} 
-                            className={`h-full ${bar.color} rounded-full transition-all duration-1000`} 
-                          />
-                        </div>
-                      </div>
-                    ))}
+                    {products.length === 0 ? (
+                      <p className="text-slate-400 text-sm text-center py-8">No products yet</p>
+                    ) : (
+                      products.slice(0, 5).map((p, idx) => {
+                        const colors = ['bg-indigo-500', 'bg-amber-500', 'bg-red-500', 'bg-emerald-500', 'bg-blue-500'];
+                        return (
+                          <div key={p.id || idx} className="space-y-1.5 text-left">
+                            <div className="flex justify-between items-center text-xs font-bold font-sans">
+                              <span className="text-slate-700 truncate max-w-[150px]">{p.name}</span>
+                              <span className="text-slate-900 font-mono">{p.stock || 0} sold</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div 
+                                style={{ width: `${Math.min(100, ((p.stock || 0) / Math.max(1, ...products.map(x => x.stock || 0))) * 100)}%` }} 
+                                className={`h-full ${colors[idx % 5]} rounded-full transition-all duration-1000`} 
+                              />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
 
-                  {/* Summary Footer Ad */}
+                  {/* Summary Footer */}
                   <div className="bg-[#FAF9FF] border border-[#7c3aed]/10 rounded-2xl p-4 text-center space-y-1.5">
-                    <p className="text-[11px] font-bold text-slate-700">Artisan Production High</p>
-                    <p className="text-[10px] text-slate-450 text-slate-500">Denver localized routing grouping delivers 98% carbon neutral dispatches.</p>
+                    <p className="text-[11px] font-bold text-slate-700">Product Performance</p>
+                    <p className="text-[10px] text-slate-500">Data reflects actual product inventory levels.</p>
                   </div>
 
                 </div>
@@ -1098,7 +1044,11 @@ export default function AdminPanel({
                         dbProducts.map((p) => (
                           <tr key={p.id} className="hover:bg-slate-50/20">
                             <td className="py-3 px-4 flex items-center gap-3">
-                              <img src={p.images[0] || 'https://images.unsplash.com/photo-1513701863038-7c1b386dce7f?w=600&auto=format&fit=crop&q=80'} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0 bg-slate-50" referrerPolicy="no-referrer" />
+                              {p.images && p.images[0] ? (
+                                <img src={p.images[0]} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0 bg-slate-50" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-400 text-xs font-bold">N/A</div>
+                              )}
                               <div>
                                 <p className="font-extrabold text-slate-900 leading-tight max-w-sm truncate">{p.name}</p>
                                 <span className="text-[10px] font-mono text-slate-400 leading-none">Vendor: {p.vendorName || 'Unknown'}</span>

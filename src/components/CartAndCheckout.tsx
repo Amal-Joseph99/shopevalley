@@ -61,14 +61,7 @@ export default function CartAndCheckout({
   const [phone, setPhone] = useState('');
   const [artisanNote, setArtisanNote] = useState('');
   const shippingMethod: 'standard' | 'express' = 'standard';
-  const [savedAddresses, setSavedAddresses] = useState<Array<{id: string; name: string; email: string; address: string; city: string; zipCode: string; phone: string}>>(() => {
-    try {
-      const raw = localStorage.getItem('sv_saved_addresses');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [savedAddresses, setSavedAddresses] = useState<Array<{id: string; name: string; email: string; address: string; city: string; zipCode: string; phone: string}>>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [useNewAddress, setUseNewAddress] = useState(true);
 

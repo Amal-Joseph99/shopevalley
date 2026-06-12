@@ -39,7 +39,7 @@ export default function VendorPortal({
   const [regBio, setRegBio] = useState('');
   const [regCategory, setRegCategory] = useState('Ceramics');
   const [regLocation, setRegLocation] = useState('Denver, CO');
-  const [regLogo, setRegLogo] = useState('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=200&auto=format&fit=crop&q=80');
+  const [regLogo, setRegLogo] = useState('');
   const [vendorRegistered, setVendorRegistered] = useState(false);
   const [newVendorId, setNewVendorId] = useState('');
 
@@ -51,7 +51,7 @@ export default function VendorPortal({
   const [newProdCategory, setNewProdCategory] = useState('Ceramics');
   const [newProdStock, setNewProdStock] = useState('10');
   const [newProdMaterials, setNewProdMaterials] = useState('');
-  const [newProdImg, setNewProdImg] = useState('https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=600&auto=format&fit=crop&q=80');
+  const [newProdImg, setNewProdImg] = useState('');
   const [productAddedSuccess, setProductAddedSuccess] = useState(false);
 
   // Statistics calculations based on active vendor profile
@@ -77,7 +77,7 @@ export default function VendorPortal({
       name: regName,
       slug,
       logo: regLogo,
-      coverImage: 'https://images.unsplash.com/photo-1565192647048-f997ded879ab?w=1200&auto=format&fit=crop&q=80',
+      coverImage: '',
       description: regBio,
       rating: 5.0,
       reviewsCount: 0,

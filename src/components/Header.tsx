@@ -262,12 +262,7 @@ export default function Header({
                 alt="Shop Valley"
                 className="h-12 w-12 rounded-2xl border border-[#1b5e20] bg-white object-cover shadow-lg"
               />
-              <div className="flex flex-col select-none">
-                <span className="font-display font-black text-2xl leading-none tracking-tight text-white flex items-center gap-1">
-                  Shop<span className="text-[#2E7D32]">Valley</span>
-                </span>
-                <span className="text-[10px] text-slate-300 font-mono tracking-widest font-black uppercase">Local Marketplace</span>
-              </div>
+
             </button>
           </div>
 
@@ -625,9 +620,7 @@ export default function Header({
             id="sh_tablet_logo"
           >
             <img src="/logo.png" alt="ShopeValley" className="h-10 w-10 rounded-xl object-contain" />
-            <div className="flex flex-col">
-              <span className="font-display font-black text-lg leading-tight text-white">ShopeValley</span>
-            </div>
+
           </button>
 
           {/* Search bar centered */}
@@ -701,9 +694,7 @@ export default function Header({
               alt="Shop Valley"
               className="h-8 w-8 rounded-xl border border-[#1b5e20] bg-white object-cover"
             />
-            <span className="font-display font-black text-md leading-none text-white tracking-tight">
-              ShopeValley
-            </span>
+
           </button>
 
           {/* Stacked Row Icons */}

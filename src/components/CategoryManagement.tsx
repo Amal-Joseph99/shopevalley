@@ -49,72 +49,14 @@ export interface ProductTypeItem {
 }
 
 export default function CategoryManagement() {
-  // --- 1. CORE STATE MANAGEMENT WITH PERSISTENCE & SEED FALLBACKS ---
-  const [categories, setCategories] = useState<CategoryItem[]>(() => {
-    const cached = localStorage.getItem('sv_categories_list');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        console.error("Failed to parse categories cache", e);
-      }
-    }
-    return [
-      { id: 'cat_1', name: 'Electronics', createdAt: '2026-05-10', status: 'Active' },
-      { id: 'cat_2', name: 'Fashion', createdAt: '2026-05-11', status: 'Active' },
-      { id: 'cat_3', name: 'Beauty & Personal Care', createdAt: '2026-05-12', status: 'Active' },
-      { id: 'cat_4', name: 'Home Appliances', createdAt: '2026-05-13', status: 'Active' },
-    ];
-  });
+  // --- 1. CORE STATE MANAGEMENT ---
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
 
-  const [subCategories, setSubCategories] = useState<SubCategoryItem[]>(() => {
-    const cached = localStorage.getItem('sv_subcategories_list');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        console.error("Failed to parse subcategories cache", e);
-      }
-    }
-    return [
-      { id: 'sub_1', categoryId: 'cat_1', categoryName: 'Electronics', name: 'Mobile Phones', createdAt: '2026-05-10', status: 'Active' },
-      { id: 'sub_2', categoryId: 'cat_1', categoryName: 'Electronics', name: 'PC & Laptops', createdAt: '2026-05-11', status: 'Active' },
-      { id: 'sub_3', categoryId: 'cat_2', categoryName: 'Fashion', name: 'Mens Wear', createdAt: '2026-05-12', status: 'Active' },
-      { id: 'sub_4', categoryId: 'cat_2', categoryName: 'Fashion', name: 'Womens Wear', createdAt: '2026-05-13', status: 'Active' },
-      { id: 'sub_5', categoryId: 'cat_3', categoryName: 'Beauty & Personal Care', name: 'Skincare', createdAt: '2026-05-14', status: 'Active' },
-    ];
-  });
+  const [subCategories, setSubCategories] = useState<SubCategoryItem[]>([]);
 
-  const [productTypes, setProductTypes] = useState<ProductTypeItem[]>(() => {
-    const cached = localStorage.getItem('sv_producttypes_list');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        console.error("Failed to parse producttypes cache", e);
-      }
-    }
-    return [
-      { id: 'pt_1', categoryId: 'cat_1', categoryName: 'Electronics', subCategoryId: 'sub_1', subCategoryName: 'Mobile Phones', name: 'Smartphones', hsnCode: '85171200', createdAt: '2026-05-10', status: 'Active' },
-      { id: 'pt_2', categoryId: 'cat_1', categoryName: 'Electronics', subCategoryId: 'sub_2', subCategoryName: 'PC & Laptops', name: 'Gaming Laptops', hsnCode: '84713010', createdAt: '2026-05-11', status: 'Active' },
-      { id: 'pt_3', categoryId: 'cat_2', categoryName: 'Fashion', subCategoryId: 'sub_3', subCategoryName: 'Mens Wear', name: 'Cotton Shirts', hsnCode: '62052000', createdAt: '2026-05-12', status: 'Active' },
-      { id: 'pt_4', categoryId: 'cat_2', categoryName: 'Fashion', subCategoryId: 'sub_4', subCategoryName: 'Womens Wear', name: 'Denim Jeans', hsnCode: '62046200', createdAt: '2026-05-13', status: 'Active' },
-      { id: 'pt_5', categoryId: 'cat_3', categoryName: 'Beauty & Personal Care', subCategoryId: 'sub_5', subCategoryName: 'Skincare', name: 'Sunscreen SPF50', hsnCode: '33049910', createdAt: '2026-05-14', status: 'Active' },
-    ];
-  });
+  const [productTypes, setProductTypes] = useState<ProductTypeItem[]>([]);
 
-  // Save changes to localStorage on any state modification
-  useEffect(() => {
-    localStorage.setItem('sv_categories_list', JSON.stringify(categories));
-  }, [categories]);
 
-  useEffect(() => {
-    localStorage.setItem('sv_subcategories_list', JSON.stringify(subCategories));
-  }, [subCategories]);
-
-  useEffect(() => {
-    localStorage.setItem('sv_producttypes_list', JSON.stringify(productTypes));
-  }, [productTypes]);
 
   // --- 2. ACTIVE VIEW NAVIGATION TAB ---
   const [activeTab, setActiveTab] = useState<'categories' | 'subcategories' | 'producttypes'>('categories');

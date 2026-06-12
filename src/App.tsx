@@ -43,126 +43,18 @@ export default function App() {
   const { route, navigate, rawHash } = useHashRouter();
 
   // Core reactive datasets
-  const [products, setProducts] = useState<Product[]>(() => {
-    const cached = localStorage.getItem('sv_products');
-    return cached ? JSON.parse(cached) : [];
-  });
+  const [products, setProducts] = useState<Product[]>([]);
 
-  const [vendors, setVendors] = useState<Vendor[]>(() => {
-    const cached = localStorage.getItem('sv_vendors');
-    return cached ? JSON.parse(cached) : [];
-  });
+  const [vendors, setVendors] = useState<Vendor[]>([]);
 
   // User States
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const cached = localStorage.getItem('sv_cart');
-    if (!cached) return [];
-    try {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => {
-          const product = item.product || PRODUCTS.find((p: any) => p.id === item.productId) || PRODUCTS[0];
-          const productId = item.productId || product?.id || '';
-          
-          let variantId = item.variantId || 'STANDARD';
-          let selectedSize = item.selectedSize || item.size || 'Free Size';
-          let selectedColour = item.selectedColour || item.colour || 'Default';
-          
-          let quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 1;
-          if (quantity <= 0) quantity = 1;
-          
-          let unitPrice = typeof item.unitPrice === 'number' && !isNaN(item.unitPrice) ? item.unitPrice : null;
-          
-          if (unitPrice === null) {
-            if (product && product.variants && product.variants.length > 0) {
-              const matchedVariant = product.variants.find((v: any) => v.size === selectedSize && v.colour === selectedColour);
-              if (matchedVariant) {
-                unitPrice = matchedVariant.price;
-                variantId = matchedVariant.id;
-              } else {
-                unitPrice = product.variants[0].price;
-                variantId = product.variants[0].id;
-              }
-            } else if (product) {
-              unitPrice = product.price;
-            } else {
-              unitPrice = 0;
-            }
-          }
-          
-          if (typeof unitPrice !== 'number' || isNaN(unitPrice)) {
-            unitPrice = 0;
-          }
+  const [cart, setCart] = useState<CartItem[]>([]);
 
-          const subtotal = Math.round(unitPrice * quantity * 100) / 100;
-          
-          return {
-            id: item.id || `${productId}-${variantId}`,
-            product,
-            productId,
-            variantId,
-            productName: item.productName || product?.name || '',
-            selectedSize,
-            selectedColour,
-            size: selectedSize,
-            colour: selectedColour,
-            quantity,
-            unitPrice,
-            subtotal
-          };
-        });
-      }
-    } catch (e) {
-      console.error("Cart hydration error, resetting cart", e);
-    }
-    return [];
-  });
+  const [wishlist, setWishlist] = useState<Product[]>([]);
 
-  const [wishlist, setWishlist] = useState<Product[]>(() => {
-    const cached = localStorage.getItem('sv_wishlist');
-    return cached ? JSON.parse(cached) : [];
-  });
+  const [viewHistory, setViewHistory] = useState<string[]>([]);
 
-  const [viewHistory, setViewHistory] = useState<string[]>(() => {
-    const cached = localStorage.getItem('sv_view_history');
-    return cached ? JSON.parse(cached) : [];
-  });
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const cached = localStorage.getItem('sv_orders');
-    if (cached) return JSON.parse(cached);
-    
-    // Seed initial orders so tracker is interactive on first load
-    const seed: Order[] = [
-      {
-        id: 'SV-9812A',
-        items: [
-          { productId: 'p1', name: 'Speckled Stoneware Coffee Mug', price: 36, quantity: 1, vendorId: 'v1' }
-        ],
-        subtotal: 36,
-        shipping: 6,
-        tax: 2.88,
-        total: 44.88,
-        customerName: 'Denver Resident',
-        email: 'denver.buyer@gmail.com',
-        address: '2001 Colorado Blvd',
-        city: 'Denver',
-        zipCode: '80205',
-        phone: '303-555-0155',
-        status: 'pending',
-        paymentMethod: 'ShopeValley Wallet Testing',
-        createdAt: new Date().toISOString(),
-        estimatedDelivery: 'Within 24 hours',
-        trackingSteps: [
-          { status: 'Order Verified', description: 'Workshop accepted order details.', time: 'Just now', done: true },
-          { status: 'In Preparation', description: 'Artisan is packaging or kiln sealing.', time: 'Estimated within 1 hour', done: true },
-          { status: 'Local Driver Dispatched', description: 'Electric courier routing assigned.', time: 'On route', done: true },
-          { status: 'Delivered', description: 'Arrived on doorstep.', time: 'Expected shortly', done: false }
-        ]
-      }
-    ];
-    return seed;
-  });
+  const [orders, setOrders] = useState<Order[]>([]);
 
   // Client-side quick filter parameters
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,10 +62,8 @@ export default function App() {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
 
   // User Authentication State (managed by Supabase)
-  const [currentUser, setCurrentUser] = useState<LoggedUser | null>(() => {
-    const cached = localStorage.getItem('sv_current_user');
-    return cached ? JSON.parse(cached) : null;
-  });
+  const [currentUser, setCurrentUser] = useState<LoggedUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [authDialog, setAuthDialog] = useState({
     open: false,
@@ -298,45 +188,28 @@ export default function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem('sv_current_user');
     navigate('');
   };
 
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('sv_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('sv_current_user');
-    }
-  }, [currentUser]);
+
 
   useEffect(() => {
     // 1. Initial auth sync from Supabase
     const syncAuth = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setCurrentUser(null);
-        } else {
-          const profile = await getCurrentUserProfile();
-          if (profile) {
-            setCurrentUser({
-              id: profile.id,
-              name: profile.name,
-              email: profile.email,
-              phoneNumber: profile.phone,
-              role: profile.role,
-              email_verified: profile.email_verified,
-              addresses: [],
-              created_at: profile.created_at
-            });
-          } else {
-            setCurrentUser(null);
-          }
-        }
-      } catch (err) {
-        console.error("Auth sync error", err);
+      const profile = await getCurrentUserProfile();
+      if (profile) {
+        setCurrentUser({
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          phoneNumber: profile.phone,
+          role: profile.role,
+          email_verified: profile.email_verified,
+          addresses: [],
+          created_at: profile.created_at
+        });
       }
+      setAuthLoading(false);
     };
     syncAuth();
 
@@ -363,12 +236,57 @@ export default function App() {
       }
     });
 
+    // 3. Fetch products from Supabase
+    const fetchProducts = async () => {
+      const { data } = await supabase.from('products').select('*');
+      if (data && data.length > 0) {
+        setProducts(data.map((p: any) => ({
+          id: p.id_key || p.id,
+          name: p.name,
+          slug: p.slug,
+          description: p.description || '',
+          price: Number(p.price) || 0,
+          originalPrice: p.original_price ? Number(p.original_price) : undefined,
+          category: p.category || '',
+          subCategory: p.sub_category || '',
+          images: Array.isArray(p.images) ? p.images : [],
+          vendorId: p.vendor_id || '',
+          vendorName: p.vendor_name || '',
+          rating: Number(p.rating) || 0,
+          reviewCount: p.review_count || 0,
+          stock: p.stock || 0,
+          tags: p.tags || [],
+          isOrganic: p.is_organic || false,
+          isHandmade: p.is_handmade || false,
+          materials: p.materials || [],
+          brand: p.brand || '',
+          sku: p.sku || '',
+          hsnCode: p.hsn_code || '',
+          manufacturerName: p.manufacturer_name || '',
+          manufacturerCountry: p.manufacturer_country || '',
+          countryOfOrigin: p.country_of_origin || '',
+          weight: p.weight || '',
+          dimensions: p.dimensions || '',
+          package: p.package || '',
+          importantNote: p.important_note || '',
+          highlights: p.highlights || '',
+          aboutProduct: p.about_product || [],
+          directions: p.directions || [],
+          variants: Array.isArray(p.variants) ? p.variants : []
+        })));
+      }
+    };
+    fetchProducts();
+
     return () => {
       subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
+    // Don't run route guards until auth state is resolved
+    if (authLoading) return;
+
     const normalized = route.path || '/';
 
     // Admin users can ONLY access admin dashboard
@@ -400,32 +318,9 @@ export default function App() {
       navigate('');
       return;
     }
-  }, [route, currentUser]);
+  }, [route, currentUser, authLoading]);
 
-  // Sync state changes to localStorage
-  useEffect(() => {
-    localStorage.setItem('sv_products', JSON.stringify(products));
-  }, [products]);
 
-  useEffect(() => {
-    localStorage.setItem('sv_vendors', JSON.stringify(vendors));
-  }, [vendors]);
-
-  useEffect(() => {
-    localStorage.setItem('sv_cart', JSON.stringify(cart));
-  }, [cart]);
-
-  useEffect(() => {
-    localStorage.setItem('sv_wishlist', JSON.stringify(wishlist));
-  }, [wishlist]);
-
-  useEffect(() => {
-    localStorage.setItem('sv_view_history', JSON.stringify(viewHistory));
-  }, [viewHistory]);
-
-  useEffect(() => {
-    localStorage.setItem('sv_orders', JSON.stringify(orders));
-  }, [orders]);
 
   // Product page viewing logger inside router changes
   useEffect(() => {
@@ -660,17 +555,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Pure image-only ad banner in category page - no text, no buttons */}
-              <div className="w-full mb-8">
-                <div className="relative w-full h-[140px] sm:h-[180px] rounded-2xl overflow-hidden shadow-sm bg-slate-100">
-                  <img 
-                    src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1200&auto=format&fit=crop&q=80" 
-                    alt="Category Page Brand ad" 
-                    className="w-full h-full object-cover select-none pointer-events-none"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              </div>
+              {/* Ad banner placeholder - hidden until configured */}
 
               <div className="space-y-8">
                 {paginatedProducts.length === 0 ? (
