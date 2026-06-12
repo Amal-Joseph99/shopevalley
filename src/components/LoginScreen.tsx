@@ -208,12 +208,21 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
       const response = await verifyRegistrationOTP(otpEmail, filledDigits);
 
       if (!response.success) {
+        // If OTP expired, a new code was auto-sent — reset fields for fresh entry
+        if (response.error === 'OTP_EXPIRED') {
+          setOtpValue(['', '', '', '', '', '']);
+          setOtpTimer(45);
+          setCanResend(false);
+          // Focus first input
+          setTimeout(() => document.getElementById('otp-input-0')?.focus(), 100);
+        }
         setOtpError(response.message || 'Verification failed');
         setIsVerifyingOtp(false);
         return;
       }
 
-      // Auto-login after verification
+      // Verification succeeded — Supabase session is already active from verifyOtp
+      // Try auto-login with password for a clean session
       const loginResponse = await loginUser(otpEmail, regPassword);
 
       if (loginResponse.success) {
@@ -232,6 +241,34 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
 
         onLoginSuccess(loggedUser);
         onNavigate('');
+      } else {
+        // verifyOtp already created a session, use it to fetch profile
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+          
+          if (profile) {
+            const loggedUser: LoggedUser = {
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              phoneNumber: profile.phone,
+              role: profile.role,
+              email_verified: profile.email_verified,
+              addresses: [],
+              created_at: profile.created_at
+            };
+            onLoginSuccess(loggedUser);
+            onNavigate('');
+            return;
+          }
+        }
+        setOtpError('Email verified but auto-login failed. Please log in manually.');
+        setIsVerifyingOtp(false);
       }
     } catch (err: any) {
       setOtpError(err.message || 'Verification error');

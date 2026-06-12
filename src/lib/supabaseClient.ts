@@ -111,22 +111,33 @@ export async function registerBuyer(email: string, name: string, password: strin
 
 export async function verifyRegistrationOTP(email: string, otp: string): Promise<AuthResponse> {
   try {
+    const emailLower = email.toLowerCase();
+
     // Use Supabase Auth's built-in OTP verification (the code sent via email on signUp)
     const { data, error } = await supabase.auth.verifyOtp({
-      email: email.toLowerCase(),
+      email: emailLower,
       token: otp,
       type: 'signup'
     });
 
     if (error) {
-      return { success: false, message: 'Invalid or expired OTP. Please check the code from your email.', error: 'INVALID_OTP' };
+      // Token expired or invalid — auto-resend a fresh code
+      if (error.message?.toLowerCase().includes('expired') || error.message?.toLowerCase().includes('invalid') || (error as any).code === 'otp_expired') {
+        await supabase.auth.resend({ type: 'signup', email: emailLower });
+        return {
+          success: false,
+          message: 'Your code has expired. A new code has been sent to your email.',
+          error: 'OTP_EXPIRED'
+        };
+      }
+      return { success: false, message: error.message || 'Verification failed', error: 'INVALID_OTP' };
     }
 
     // Mark profile as email verified
     const { error: profileError } = await supabase
       .from('profiles')
       .update({ email_verified: true })
-      .eq('email', email.toLowerCase());
+      .eq('email', emailLower);
 
     if (profileError) {
       return { success: false, message: 'Failed to verify email', error: profileError.message };
