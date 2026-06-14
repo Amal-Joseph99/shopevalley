@@ -96,31 +96,41 @@ export default function ProductCard({
           />
         </div>
 
-        {/* Badges Overlay on top-left of image - % OFF ONLY */}
-        <div className="absolute top-2 left-2 pointer-events-none">
+        {/* Badges Overlay on top-left of image */}
+        <div className="absolute top-2 left-2 pointer-events-none flex flex-col gap-1">
+          <span className="bg-slate-900 text-white text-[8px] font-black px-1.5 py-0.5 rounded-[3px] shadow-sm uppercase tracking-wide">
+            Brand New
+          </span>
           {discountPercent ? (
-            <span className="bg-[#e11d48] text-white text-[9px] font-black px-1.5 py-0.5 rounded-[4px] shadow-sm">
+            <span className="bg-[#e11d48] text-white text-[9px] font-black px-1.5 py-0.5 rounded-[4px] shadow-sm w-fit">
               {discountPercent}% OFF
             </span>
           ) : (
-            <span className="bg-[#e11d48] text-white text-[9px] font-black px-1.5 py-0.5 rounded-[4px] shadow-sm">
+            <span className="bg-[#e11d48] text-white text-[9px] font-black px-1.5 py-0.5 rounded-[4px] shadow-sm w-fit">
               10% OFF
             </span>
           )}
         </div>
 
-        {/* Circle Actions on top-right of image - WISHLIST ONLY */}
-        <div className="absolute top-2 right-2">
+        {/* Circle Actions on top-right of image */}
+        <div className="absolute top-2 right-2 flex flex-col gap-1.5">
           <button 
-            onClick={() => onToggleWishlist(product)}
+            onClick={(e) => { e.stopPropagation(); onToggleWishlist(product); }}
             className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all duration-200 shadow-sm cursor-pointer ${
               isWishlisted 
                 ? 'bg-rose-50 border-rose-200 text-[#e11d48]' 
-                : 'bg-white border-slate-150 text-slate-400 hover:text-[#e11d48] hover:bg-rose-50'
+                : 'bg-white/90 border-slate-200 text-slate-400 hover:text-[#e11d48] hover:bg-rose-50'
             }`}
-            title="Wishlist item"
+            title="Wishlist"
           >
             <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-current' : ''}`} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onNavigate(`category/${product.category}/${product.slug}`); }}
+            className="w-7 h-7 rounded-full flex items-center justify-center border bg-white/90 border-slate-200 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200 shadow-sm cursor-pointer"
+            title="Quick View"
+          >
+            <Eye className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

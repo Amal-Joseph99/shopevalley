@@ -61,8 +61,8 @@ export default function ActiveAds(_props: ActiveAdsProps) {
   };
 
   return (
-    <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-3" id="sh_hero_ads_carousel">
-      <div className="relative w-full h-[300px] rounded-2xl overflow-hidden bg-slate-100 shadow-sm">
+    <section className="w-full px-4 sm:px-6 pt-2 pb-1" id="sh_hero_ads_carousel">
+      <div className="relative w-full max-w-7xl mx-auto h-[300px] rounded-2xl overflow-hidden bg-white shadow-sm border border-slate-100">
         {banners.map((banner, idx) => (
           <div
             key={banner.id}

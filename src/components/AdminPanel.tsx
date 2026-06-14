@@ -241,7 +241,7 @@ export default function AdminPanel({
     const { data: urlData } = supabase.storage.from('ad-banners').getPublicUrl(fileName);
 
     await supabase.from('ad_campaigns').insert({
-      title: `Banner ${adBanners.length + 1}`,
+      title: '',
       image_url: urlData?.publicUrl || '',
       image_path: fileName,
       display_order: adBanners.length,
@@ -322,6 +322,21 @@ export default function AdminPanel({
 
   const handleRemoveProductFromSection = async (id: string) => {
     await supabase.from('homepage_section_products').delete().eq('id', id);
+    fetchHomepageSections();
+  };
+
+  const handleMoveSectionProduct = async (sectionId: string, productRowId: string, direction: 'up' | 'down') => {
+    const section = homepageSections.find(s => s.id === sectionId);
+    if (!section) return;
+    const idx = section.products.findIndex(p => p.id === productRowId);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= section.products.length) return;
+
+    const current = section.products[idx];
+    const swap = section.products[swapIdx];
+    await supabase.from('homepage_section_products').update({ display_order: swap.display_order }).eq('id', current.id);
+    await supabase.from('homepage_section_products').update({ display_order: current.display_order }).eq('id', swap.id);
     fetchHomepageSections();
   };
 
@@ -1314,7 +1329,7 @@ export default function AdminPanel({
                         <p className="text-xs text-slate-400 text-center py-6">No products in this section yet. Click "Add Product" above.</p>
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                          {section.products.map(sp => (
+                          {section.products.map((sp, idx) => (
                             <div key={sp.id} className="relative bg-slate-50 border border-slate-100 rounded-xl overflow-hidden group">
                               {sp.product?.images?.[0] && (
                                 <img src={sp.product.images[0]} alt="" className="w-full h-20 object-cover" referrerPolicy="no-referrer" />
@@ -1322,6 +1337,19 @@ export default function AdminPanel({
                               <div className="p-2">
                                 <p className="text-[10px] font-bold text-slate-800 truncate">{sp.product?.name || 'Unknown'}</p>
                                 <p className="text-[10px] text-slate-500 font-mono">₹{sp.product?.price || 0}</p>
+                                <div className="flex items-center gap-1 mt-1.5">
+                                  <button
+                                    onClick={() => handleMoveSectionProduct(section.id, sp.id, 'up')}
+                                    disabled={idx === 0}
+                                    className="text-[9px] font-bold text-slate-500 hover:text-violet-600 disabled:opacity-30 cursor-pointer"
+                                  >↑</button>
+                                  <button
+                                    onClick={() => handleMoveSectionProduct(section.id, sp.id, 'down')}
+                                    disabled={idx === section.products.length - 1}
+                                    className="text-[9px] font-bold text-slate-500 hover:text-violet-600 disabled:opacity-30 cursor-pointer"
+                                  >↓</button>
+                                  <span className="text-[9px] text-slate-400 ml-auto">#{idx + 1}</span>
+                                </div>
                               </div>
                               <button
                                 onClick={() => handleRemoveProductFromSection(sp.id)}

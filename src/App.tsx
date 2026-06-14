@@ -10,6 +10,7 @@ import OrderTracker from './components/OrderTracker';
 import OrderStatusPage from './components/OrderStatusPage';
 import ActiveAds from './components/ActiveAds';
 import HomepageSections from './components/HomepageSections';
+import SectionProductsPage from './components/SectionProductsPage';
 
 import LoginScreen from './components/LoginScreen';
 import AdminPanel from './components/AdminPanel';
@@ -691,81 +692,16 @@ export default function App() {
           />
         ) : null}
 
-        {/* VIEW 10: SECTION WISE PAGES WITH FILTERED PRODUCTS */}
-        {route.path === 'section' ? (() => {
-          const sectionId = route.categoryName || 'top-brands';
-          let title = '';
-          let subtitle = '';
-          let sectionProducts: Product[] = [];
-          
-          if (sectionId === 'personalized') {
-            title = 'Personalized For You';
-            subtitle = 'Custom recommendations derived specifically for your shopping interest profile.';
-            sectionProducts = products.filter(p => p.rating >= 4.5);
-          } else if (sectionId === 'hot-deals') {
-            title = 'Hot Deals';
-            subtitle = 'Sizzlers with highest discounts and special limited duration price drop values.';
-            sectionProducts = products.filter(p => p.originalPrice && p.originalPrice > p.price);
-          } else if (sectionId === 'special-offers') {
-            title = 'Special Offers';
-            subtitle = 'Premium bundle deals and curated value gift packs with high direct savings.';
-            sectionProducts = products.filter(p => p.category === 'Combo Offers');
-          } else {
-            title = 'Top Brands';
-            subtitle = 'Explore the full premium certified collection of independent Colorado local workshops.';
-            sectionProducts = products;
-          }
-
-          return (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8" id="sh_section_wise_view_workspace">
-              {/* Back to Home Trigger */}
-              <div className="mb-6 flex justify-between items-center">
-                <button 
-                  onClick={() => navigate('')}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2E7D32] hover:underline cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back to Homepage
-                </button>
-                <div className="text-[10px] font-mono text-slate-400">INR AS BASE CURRENCY</div>
-              </div>
-
-              {/* View Heading */}
-              <div className="border-b border-slate-200/80 pb-5 mb-8">
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-950 uppercase font-display flex items-center gap-2">
-                  <span className="w-2 h-8 bg-[#2E7D32] rounded-full inline-block"></span>
-                  {title}
-                </h1>
-                <p className="text-xs text-slate-500 mt-1 font-sans font-medium">{subtitle}</p>
-                <div className="text-xs text-slate-400 font-mono mt-1 font-bold">
-                  Showing {sectionProducts.length} certified items
-                </div>
-              </div>
-
-              {/* 4 columns in desktop, 2 columns in mobile */}
-              {sectionProducts.length === 0 ? (
-                <div className="text-center py-20 bg-slate-50 border border-slate-200 rounded-3xl p-6">
-                  <p className="text-xs font-mono text-slate-500">No active products are categorized in this section right now.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in">
-                  {sectionProducts.map((p) => {
-                    const isFav = wishlist.some(item => item.id === p.id);
-                    return (
-                      <ProductCard 
-                        key={p.id}
-                        product={p}
-                        isWishlisted={isFav}
-                        onToggleWishlist={handleToggleWishlist}
-                        onAddToCart={handleAddToCartWithAuth}
-                        onNavigate={handleProtectedNavigate}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })() : null}
+        {/* VIEW 10: HOMEPAGE SECTION FULL PAGES (Featured, Hot Deals, Trending) */}
+        {route.path === 'section' && route.categoryName ? (
+          <SectionProductsPage
+            sectionSlug={route.categoryName}
+            onNavigate={handleProtectedNavigate}
+            onAddToCart={handleAddToCartWithAuth}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
+          />
+        ) : null}
 
         {/* VIEW 8: BOOKMARKED WISHLIST GRID */}
         {route.path === 'wishlist' && (
