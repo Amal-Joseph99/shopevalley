@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Heart, 
   Share2, 
@@ -52,7 +52,17 @@ export default function ProductDetailView({
   const [pincodeResult, setPincodeResult] = useState<string | null>(null);
 
   const hasVariants = !!(product.variants && product.variants.length > 0);
-  
+
+  const featureSpecs = useMemo(() => {
+    const entries = [
+      { label: 'Battery', value: product.battery },
+      { label: 'Lighting', value: product.lighting },
+      { label: 'Microphone', value: product.microphone },
+      { label: 'Connectivity', value: product.connectivity },
+      { label: 'Product Type', value: product.productType },
+    ];
+    return entries.filter((entry) => entry.value?.trim());
+  }, [product.battery, product.lighting, product.microphone, product.connectivity, product.productType]);
   // Extract unique sizes and colours from variants list
   const availableSizes = hasVariants
     ? Array.from(new Set(product.variants?.map((v) => v.size) || []))
@@ -524,34 +534,21 @@ export default function ProductDetailView({
           {isSpecsExpanded && (
             <div className="p-5 border-t border-slate-100 text-left grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-200">
               
-              {/* Features & Specs Column */}
+              {featureSpecs.length > 0 && (
               <div>
                 <h4 className="font-bold text-[11px] text-slate-400 tracking-wider font-mono uppercase pb-2 border-b border-slate-100">
                   Features & Specs
                 </h4>
                 <div className="divide-y divide-slate-100 mt-1 min-h-[140px]">
-                  <div className="grid grid-cols-2 py-2.5 text-[12px] font-sans">
-                    <span className="font-bold text-slate-800">Battery</span>
-                    <span className="text-slate-600">{product.battery || 'Built-in rechargeable support'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 py-2.5 text-[12px] font-sans">
-                    <span className="font-bold text-slate-800">Lighting</span>
-                    <span className="text-slate-600">{product.lighting || 'Ambient LED indicator'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 py-2.5 text-[12px] font-sans">
-                    <span className="font-bold text-slate-800">Microphone</span>
-                    <span className="text-slate-600">{product.microphone || 'High-fidelity audio filter model'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 py-2.5 text-[12px] font-sans">
-                    <span className="font-bold text-slate-800">Connectivity</span>
-                    <span className="text-slate-600">{product.connectivity || 'Wireless pairing optimized'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 py-2.5 text-[12px] font-sans">
-                    <span className="font-bold text-slate-800">Product Type</span>
-                    <span className="text-slate-600">{product.productType || 'Premium specialty appliance'}</span>
-                  </div>
+                  {featureSpecs.map((spec) => (
+                    <div key={spec.label} className="grid grid-cols-2 py-2.5 text-[12px] font-sans">
+                      <span className="font-bold text-slate-800">{spec.label}</span>
+                      <span className="text-slate-600">{spec.value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
+              )}
 
               {/* Item Details Column */}
               <div>
@@ -579,18 +576,24 @@ export default function ProductDetailView({
                     <span className="font-bold text-slate-800">In Stock</span>
                     <span className="text-slate-600 font-bold text-emerald-600">{product.stock > 0 ? 'Yes' : 'Out of stock'}</span>
                   </div>
-                  <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
-                    <span className="font-bold text-slate-800">Manufacturer Name</span>
-                    <span className="text-slate-600">{product.manufacturerName || 'Shopevalley Workshop Hub'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
-                    <span className="font-bold text-slate-800">Manufacturer Country</span>
-                    <span className="text-slate-600">{product.manufacturerCountry || product.countryOfOrigin || 'India'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
-                    <span className="font-bold text-slate-800">Country of Origin</span>
-                    <span className="text-slate-600">{product.countryOfOrigin || 'India'}</span>
-                  </div>
+                  {product.manufacturerName?.trim() && (
+                    <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
+                      <span className="font-bold text-slate-800">Manufacturer Name</span>
+                      <span className="text-slate-600">{product.manufacturerName}</span>
+                    </div>
+                  )}
+                  {product.manufacturerCountry?.trim() && (
+                    <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
+                      <span className="font-bold text-slate-800">Manufacturer Country</span>
+                      <span className="text-slate-600">{product.manufacturerCountry}</span>
+                    </div>
+                  )}
+                  {product.countryOfOrigin?.trim() && (
+                    <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
+                      <span className="font-bold text-slate-800">Country of Origin</span>
+                      <span className="text-slate-600">{product.countryOfOrigin}</span>
+                    </div>
+                  )}
                   {product.weight && (
                     <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
                       <span className="font-bold text-slate-800">Item Weight</span>
@@ -642,7 +645,8 @@ export default function ProductDetailView({
           </div>
         )}
 
-        {/* SECTION E: IMPORTANT NOTE / INGREDIENTS */}
+        {/* SECTION E: IMPORTANT NOTE */}
+        {product.importantNote?.trim() && (
         <div className="bg-[#eff6ff] border-t border-b border-blue-100">
           <button
             onClick={() => setIsImportantNoteExpanded(!isImportantNoteExpanded)}
@@ -657,11 +661,12 @@ export default function ProductDetailView({
           {isImportantNoteExpanded && (
             <div className="p-5 pt-1 text-left text-[11.5px] md:text-[12px] text-blue-900 leading-relaxed font-sans font-normal border-t border-blue-100/40">
               <p className="bg-white/80 border border-blue-100 p-3 rounded-lg flex items-start gap-2 whitespace-pre-line shadow-xs">
-                {product.importantNote || 'Adult supervision is recommended. Stated weights and sizes may slightly vary owing to raw material batch variation.'}
+                {product.importantNote}
               </p>
             </div>
           )}
         </div>
+        )}
 
       </div>
 

@@ -136,11 +136,20 @@ export default function ProductManagement() {
   const [newColour, setNewColour] = useState('');
   const [variants, setVariants] = useState<VariantRow[]>([]);
 
-  // Step 4: Packaging
+  // Step 4: Packaging + optional specs
   const [packageWeight, setPackageWeight] = useState('');
   const [packageLength, setPackageLength] = useState('');
   const [packageWidth, setPackageWidth] = useState('');
   const [packageHeight, setPackageHeight] = useState('');
+  const [specBattery, setSpecBattery] = useState('');
+  const [specLighting, setSpecLighting] = useState('');
+  const [specMicrophone, setSpecMicrophone] = useState('');
+  const [specConnectivity, setSpecConnectivity] = useState('');
+  const [specProductType, setSpecProductType] = useState('');
+  const [manufacturerName, setManufacturerName] = useState('');
+  const [manufacturerCountry, setManufacturerCountry] = useState('');
+  const [countryOfOrigin, setCountryOfOrigin] = useState('');
+  const [importantNote, setImportantNote] = useState('');
 
   // Dropdown options from DB
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
@@ -390,6 +399,15 @@ export default function ProductManagement() {
       setPackageLength(data.package_length?.toString() || '');
       setPackageWidth(data.package_width?.toString() || '');
       setPackageHeight(data.package_height?.toString() || '');
+      setSpecBattery(data.battery || '');
+      setSpecLighting(data.lighting || '');
+      setSpecMicrophone(data.microphone || '');
+      setSpecConnectivity(data.connectivity || '');
+      setSpecProductType(data.spec_product_type || '');
+      setManufacturerName(data.manufacturer_name || '');
+      setManufacturerCountry(data.manufacturer_country || '');
+      setCountryOfOrigin(data.country_of_origin || '');
+      setImportantNote(data.important_note || '');
 
       // Load existing images
       if (data.images && data.images.length > 0) {
@@ -496,6 +514,15 @@ export default function ProductManagement() {
     setPackageLength('');
     setPackageWidth('');
     setPackageHeight('');
+    setSpecBattery('');
+    setSpecLighting('');
+    setSpecMicrophone('');
+    setSpecConnectivity('');
+    setSpecProductType('');
+    setManufacturerName('');
+    setManufacturerCountry('');
+    setCountryOfOrigin('');
+    setImportantNote('');
     setSaveError('');
     setSaveSuccess('');
     setEditingProductId(null);
@@ -537,6 +564,15 @@ export default function ProductManagement() {
       package_length: packageLength ? parseFloat(packageLength) : null,
       package_width: packageWidth ? parseFloat(packageWidth) : null,
       package_height: packageHeight ? parseFloat(packageHeight) : null,
+      battery: specBattery.trim() || null,
+      lighting: specLighting.trim() || null,
+      microphone: specMicrophone.trim() || null,
+      connectivity: specConnectivity.trim() || null,
+      spec_product_type: specProductType.trim() || null,
+      manufacturer_name: manufacturerName.trim() || null,
+      manufacturer_country: manufacturerCountry.trim() || null,
+      country_of_origin: countryOfOrigin.trim() || null,
+      important_note: importantNote.trim() || null,
       status,
       updated_at: new Date().toISOString()
     };
@@ -1487,6 +1523,62 @@ export default function ProductManagement() {
                 className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
             </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-5 space-y-4">
+            <h3 className="font-extrabold text-sm text-slate-800 uppercase border-b border-slate-100 pb-3">Features & Specifications (Optional)</h3>
+            <p className="text-[11px] text-slate-500">Fill only the fields you want shown on the product details page.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Battery</label>
+                <input value={specBattery} onChange={e => setSpecBattery(e.target.value)} placeholder="e.g. Built-in rechargeable support" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Lighting</label>
+                <input value={specLighting} onChange={e => setSpecLighting(e.target.value)} placeholder="e.g. Ambient LED indicator" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Microphone</label>
+                <input value={specMicrophone} onChange={e => setSpecMicrophone(e.target.value)} placeholder="e.g. High-fidelity audio filter model" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Connectivity</label>
+                <input value={specConnectivity} onChange={e => setSpecConnectivity(e.target.value)} placeholder="e.g. Wireless pairing optimized" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Product Type (Spec)</label>
+                <input value={specProductType} onChange={e => setSpecProductType(e.target.value)} placeholder="e.g. Premium specialty appliance" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-5 space-y-4">
+            <h3 className="font-extrabold text-sm text-slate-800 uppercase border-b border-slate-100 pb-3">Manufacturer & Origin (Optional)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Manufacturer Name</label>
+                <input value={manufacturerName} onChange={e => setManufacturerName(e.target.value)} placeholder="e.g. Shopevalley Workshop Hub" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Manufacturer Country</label>
+                <input value={manufacturerCountry} onChange={e => setManufacturerCountry(e.target.value)} placeholder="e.g. India" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase">Country of Origin</label>
+                <input value={countryOfOrigin} onChange={e => setCountryOfOrigin(e.target.value)} placeholder="e.g. India" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-5 space-y-4">
+            <h3 className="font-extrabold text-sm text-slate-800 uppercase border-b border-slate-100 pb-3">Important Note (Optional)</h3>
+            <textarea
+              value={importantNote}
+              onChange={e => setImportantNote(e.target.value)}
+              rows={4}
+              placeholder="e.g. Adult supervision is recommended. Stated weights and sizes may slightly vary..."
+              className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-y"
+            />
           </div>
 
           {/* Summary before save */}

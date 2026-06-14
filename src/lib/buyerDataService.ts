@@ -27,6 +27,15 @@ export function normalizeProductRow(p: any): Product {
     brand: p.brand || '',
     sku: p.sku || '',
     hsnCode: p.hsn_code || '',
+    productType: p.spec_product_type || undefined,
+    battery: p.battery || undefined,
+    lighting: p.lighting || undefined,
+    microphone: p.microphone || undefined,
+    connectivity: p.connectivity || undefined,
+    manufacturerName: p.manufacturer_name || undefined,
+    manufacturerCountry: p.manufacturer_country || undefined,
+    countryOfOrigin: p.country_of_origin || undefined,
+    importantNote: p.important_note || undefined,
     createdAt: p.created_at || '',
     variants
   };
