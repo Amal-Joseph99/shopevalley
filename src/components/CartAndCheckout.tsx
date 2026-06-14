@@ -180,7 +180,8 @@ export default function CartAndCheckout({
 
       // 3. Create Razorpay order via backend
       setPaymentStatusMessage('Creating secure order...');
-      const orderRes = await fetch('/api/create-order', {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const orderRes = await fetch(`${supabaseUrl}/functions/v1/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -216,7 +217,7 @@ export default function CartAndCheckout({
           // 5. Verify payment on backend
           setPaymentStatusMessage('Verifying payment...');
           try {
-            const verifyRes = await fetch('/api/verify-payment', {
+            const verifyRes = await fetch(`${supabaseUrl}/functions/v1/verify-payment`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
