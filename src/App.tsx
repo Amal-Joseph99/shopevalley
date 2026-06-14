@@ -86,6 +86,9 @@ export default function App() {
     if (!path || path === '/' || path === 'login' || path === 'register' || path === 'verify-otp' || path === 'forgot-password' || path === 'reset-password' || path === 'wishlist') {
       return true;
     }
+    if (path === 'admin') {
+      return true;
+    }
     if (path.startsWith('category/') || path.startsWith('section/')) {
       return true;
     }
