@@ -255,6 +255,7 @@ export default function ProductDetailView({
               : undefined;
 
             const activePrice = activeVariant ? activeVariant.price : product.price;
+            const activeMrp = activeVariant?.mrp || product.originalPrice || Math.round(activePrice * 1.15);
             const activeSku = activeVariant ? activeVariant.sku : (product.sku || 'BZD032010953');
             const activeStock = activeVariant ? activeVariant.stock : product.stock;
 
@@ -265,7 +266,7 @@ export default function ProductDetailView({
                   <div className="flex items-center gap-3">
                     {/* Left-Side: MRP details with strike-through & percentage */}
                     <span className="text-xs text-slate-500 font-sans">
-                      MRP: <span className="line-through">{formatINR(product.originalPrice ? (product.originalPrice / product.price * activePrice) : (activePrice * 1.5))}</span> 
+                      MRP: <span className="line-through">{formatINR(activeMrp)}</span> 
                       {discountPercent > 0 && (
                         <span className="text-rose-600 font-bold ml-1.5">({discountPercent}% OFF)</span>
                       )}
@@ -282,7 +283,7 @@ export default function ProductDetailView({
                   <span className="text-[11px] text-slate-400 block mt-0.5">Inclusive of all taxes</span>
                   {hasVariants && (
                     <span className="text-[10px] text-amber-600 font-mono mt-1 block">
-                      Variant ID: <span className="font-extrabold">{activeVariant?.id}</span>
+                      Variant ID: <span className="font-extrabold">{activeVariant?.variantId || activeVariant?.id}</span>
                     </span>
                   )}
                 </div>

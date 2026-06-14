@@ -287,49 +287,49 @@ export async function generateNextSku() {
 }
 
 export async function uploadProductImage(file: File) {
-  const safeName = `uploads/${Date.now()}-${file.name}`;
-  try {
-    const { error: uploadError } = await supabase
-      .storage
-      .from('product-media')
-      .upload(safeName, file, { upsert: true });
+  const safeName = `uploads/images/${Date.now()}-${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
+  const { error: uploadError } = await supabase
+    .storage
+    .from('product-media')
+    .upload(safeName, file, { contentType: file.type, upsert: true });
 
-    if (uploadError) {
-      return URL.createObjectURL(file);
-    }
-
-    const { data: urlData } = supabase
-      .storage
-      .from('product-media')
-      .getPublicUrl(safeName);
-
-    return urlData?.publicUrl || URL.createObjectURL(file);
-  } catch {
-    return URL.createObjectURL(file);
+  if (uploadError) {
+    throw new Error(`Image upload failed: ${uploadError.message}`);
   }
+
+  const { data: urlData } = supabase
+    .storage
+    .from('product-media')
+    .getPublicUrl(safeName);
+
+  if (!urlData?.publicUrl) {
+    throw new Error('Image upload failed: public URL was not returned');
+  }
+
+  return urlData.publicUrl;
 }
 
 export async function uploadProductVideo(file: File) {
-  const safeName = `uploads/${Date.now()}-${file.name}`;
-  try {
-    const { error: uploadError } = await supabase
-      .storage
-      .from('product-media')
-      .upload(safeName, file, { upsert: true });
+  const safeName = `uploads/videos/${Date.now()}-${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
+  const { error: uploadError } = await supabase
+    .storage
+    .from('product-media')
+    .upload(safeName, file, { contentType: file.type, upsert: true });
 
-    if (uploadError) {
-      return URL.createObjectURL(file);
-    }
-
-    const { data: urlData } = supabase
-      .storage
-      .from('product-media')
-      .getPublicUrl(safeName);
-
-    return urlData?.publicUrl || URL.createObjectURL(file);
-  } catch {
-    return URL.createObjectURL(file);
+  if (uploadError) {
+    throw new Error(`Video upload failed: ${uploadError.message}`);
   }
+
+  const { data: urlData } = supabase
+    .storage
+    .from('product-media')
+    .getPublicUrl(safeName);
+
+  if (!urlData?.publicUrl) {
+    throw new Error('Video upload failed: public URL was not returned');
+  }
+
+  return urlData.publicUrl;
 }
 
 export async function deleteProduct(productId: string) {

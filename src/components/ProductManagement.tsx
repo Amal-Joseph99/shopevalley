@@ -307,11 +307,17 @@ export default function ProductManagement() {
       ));
     }
 
-    const url = await uploadProductImage(file);
+    try {
+      const url = await uploadProductImage(file);
 
-    setBaseImages(prev => prev.map((img) =>
-      img.file === file ? { ...img, progress: 100, url } : img
-    ));
+      setBaseImages(prev => prev.map((img) =>
+        img.file === file ? { ...img, progress: 100, url } : img
+      ));
+    } catch (err: any) {
+      setBaseImages(prev => prev.map((img) =>
+        img.file === file ? { ...img, progress: 0, error: err.message || 'Upload failed' } : img
+      ));
+    }
   };
 
   const removeImage = (index: number) => {
@@ -332,8 +338,12 @@ export default function ProductManagement() {
       setVideoFile(prev => prev ? { ...prev, progress: stage } : null);
     }
 
-    const url = await uploadProductVideo(file);
-    setVideoFile(prev => prev ? { ...prev, progress: 100, url } : null);
+    try {
+      const url = await uploadProductVideo(file);
+      setVideoFile(prev => prev ? { ...prev, progress: 100, url } : null);
+    } catch (err: any) {
+      setVideoFile(prev => prev ? { ...prev, progress: 0, error: err.message || 'Upload failed' } : null);
+    }
 
     if (videoInputRef.current) videoInputRef.current.value = '';
   };
@@ -491,7 +501,9 @@ export default function ProductManagement() {
     setEditingProductId(null);
   };
 
-  const getUploadedImages = () => baseImages.filter(img => img.url && !img.error).map(img => img.url!);
+  const getUploadedImages = () => baseImages
+    .filter(img => img.url && !img.error && !img.url.startsWith('blob:'))
+    .map(img => img.url!);
 
   const buildProductPayload = (status: 'Draft' | 'Active', skuOverride = productSku) => {
     const categoryName = categoryOptions.find(c => c.id === selectedCategoryId)?.name || '';

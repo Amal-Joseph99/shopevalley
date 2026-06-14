@@ -50,12 +50,15 @@ export interface Review {
 }
 
 export interface ProductVariant {
-  id: string; // e.g. TSHIRT-BLACK-M
+  id: string; // database UUID
+  variantId?: string; // display id, e.g. VR-XXXXXXXX
   size: string;
   colour: string;
   sku: string;
   stock: number;
   price: number;
+  mrp?: number;
+  images?: string[];
 }
 
 export interface CartItem {

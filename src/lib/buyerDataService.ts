@@ -1,30 +1,65 @@
 import { supabase } from './supabaseClient';
-import { CartItem, Order, Product, SavedAddress } from '../types';
+import { CartItem, Order, Product, ProductVariant, SavedAddress } from '../types';
 
 const isUuid = (value?: string | null) =>
   Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 
 export function normalizeProductRow(p: any): Product {
+  const variants = normalizeProductVariants(p.product_variants || p.variants || []);
+  const imageList = normalizeImages(p.images);
+  const baseVariant = variants.find(v => v.stock > 0) || variants[0];
+
   return {
     id: p.id,
     idKey: p.id_key || p.id,
     name: p.name || '',
     slug: p.slug || '',
     description: p.description || '',
-    price: Number(p.price) || 0,
-    originalPrice: p.original_price ? Number(p.original_price) : undefined,
+    price: baseVariant ? Number(baseVariant.price) || 0 : Number(p.price) || 0,
+    originalPrice: baseVariant?.mrp || (p.original_price ? Number(p.original_price) : undefined),
     category: p.category || '',
     subCategory: p.sub_category || '',
-    images: Array.isArray(p.images) ? p.images : [],
+    images: imageList,
     rating: Number(p.rating) || 0,
     reviewCount: p.review_count || 0,
-    stock: p.stock || 0,
+    stock: variants.length > 0 ? variants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0) : p.stock || 0,
     tags: p.tags || [],
     brand: p.brand || '',
     sku: p.sku || '',
     hsnCode: p.hsn_code || '',
-    createdAt: p.created_at || ''
+    createdAt: p.created_at || '',
+    variants
   };
+}
+
+function normalizeImages(value: any): string[] {
+  let images = value;
+  if (typeof images === 'string') {
+    try {
+      images = JSON.parse(images);
+    } catch {
+      images = [images];
+    }
+  }
+  if (!Array.isArray(images)) return [];
+  return images
+    .map((image) => typeof image === 'string' ? image : image?.url || image?.publicUrl || '')
+    .filter((image) => image && !image.startsWith('blob:'));
+}
+
+function normalizeProductVariants(value: any): ProductVariant[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((variant: any) => ({
+    id: variant.id,
+    variantId: variant.variant_id,
+    sku: variant.sku || '',
+    size: variant.size || 'Free Size',
+    colour: variant.colour || 'Default',
+    price: Number(variant.price) || 0,
+    mrp: variant.mrp != null ? Number(variant.mrp) : undefined,
+    stock: Number(variant.stock) || 0,
+    images: normalizeImages(variant.images)
+  }));
 }
 
 export async function fetchCartItems(): Promise<CartItem[]> {
@@ -33,7 +68,7 @@ export async function fetchCartItems(): Promise<CartItem[]> {
 
   const { data, error } = await supabase
     .from('cart_items')
-    .select('id, product_id, variant_id, quantity, selected_size, selected_colour, products:product_id(*)')
+    .select('id, product_id, variant_id, quantity, selected_size, selected_colour, products:product_id(*), product_variants:variant_id(*)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true });
 
@@ -43,7 +78,8 @@ export async function fetchCartItems(): Promise<CartItem[]> {
     .filter((row: any) => row.products)
     .map((row: any) => {
       const product = normalizeProductRow(row.products);
-      const price = Number(product.price) || 0;
+      const variant = row.product_variants ? normalizeProductVariants([row.product_variants])[0] : undefined;
+      const price = Number(variant?.price ?? product.price) || 0;
       const quantity = Number(row.quantity) || 1;
       return {
         id: row.id,
@@ -51,10 +87,10 @@ export async function fetchCartItems(): Promise<CartItem[]> {
         productId: product.id,
         variantId: row.variant_id || 'STANDARD',
         productName: product.name,
-        selectedSize: row.selected_size || 'Free Size',
-        selectedColour: row.selected_colour || 'Default',
-        size: row.selected_size || 'Free Size',
-        colour: row.selected_colour || 'Default',
+        selectedSize: row.selected_size || variant?.size || 'Free Size',
+        selectedColour: row.selected_colour || variant?.colour || 'Default',
+        size: row.selected_size || variant?.size || 'Free Size',
+        colour: row.selected_colour || variant?.colour || 'Default',
         quantity,
         unitPrice: price,
         subtotal: Math.round(quantity * price * 100) / 100

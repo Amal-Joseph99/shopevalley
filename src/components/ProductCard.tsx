@@ -7,20 +7,18 @@ interface ProductCardProps {
   product: Product;
   isWishlisted: boolean;
   onToggleWishlist: (product: Product) => void;
-  onAddToCart: (product: Product, quantity?: number) => void;
+  onAddToCart: (product: Product, quantity?: number, variant?: any, selectedSize?: string, selectedColour?: string) => void;
   onNavigate: (path: string, options?: any) => void;
 }
 
-export function formatINR(usd: any): string {
-  if (usd === undefined || usd === null || isNaN(Number(usd))) {
+export function formatINR(value: any): string {
+  if (value === undefined || value === null || isNaN(Number(value))) {
     return 'Price unavailable';
   }
-  const usdNum = Number(usd);
-  if (usdNum === 0) {
+  const inrAmount = Number(value);
+  if (inrAmount === 0) {
     return '₹0';
   }
-  // Multiply by 83 to convert USD to a realistic INR value
-  const inrAmount = usdNum * 83;
   return `₹${inrAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -32,20 +30,24 @@ export default function ProductCard({
   onNavigate
 }: ProductCardProps) {
   const [flyingItems, setFlyingItems] = useState<{ id: number; img: string }[]>([]);
+  const displayVariant = product.variants?.find(v => v.stock > 0) || product.variants?.[0];
+  const displayPrice = displayVariant?.price ?? product.price;
+  const displayOriginalPrice = product.originalPrice || (displayVariant ? Math.round(displayPrice * 1.15) : Math.round(product.price * 1.15));
+  const primaryImage = product.images.find(img => img && !img.startsWith('blob:')) || '';
 
   // Calculate discount percentage if original price is available
-  const discountPercent = product.originalPrice && product.originalPrice > product.price
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+  const discountPercent = displayOriginalPrice && displayOriginalPrice > displayPrice
+    ? Math.round(((displayOriginalPrice - displayPrice) / displayOriginalPrice) * 100)
     : null;
 
   const handleAddClick = (e: React.MouseEvent) => {
     // Invoke the standard cart addition handlers
-    onAddToCart(product);
+    onAddToCart(product, 1, displayVariant, displayVariant?.size, displayVariant?.colour);
 
     // Spawn animated floating thumbnail clone
     const newItem = {
       id: Date.now(),
-      img: product.images[0]
+      img: primaryImage
     };
     setFlyingItems(prev => [...prev, newItem]);
 
@@ -89,7 +91,7 @@ export default function ProductCard({
           className="w-full aspect-square bg-[#f8fafc] rounded-[10px] overflow-hidden flex items-center justify-center cursor-pointer relative"
         >
           <img 
-            src={product.images[0]} 
+            src={primaryImage} 
             alt={product.name} 
             className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-550"
             referrerPolicy="no-referrer"
@@ -157,10 +159,10 @@ export default function ProductCard({
           {/* Row of original price strike-through (LEFT) & discounted price (RIGHT) */}
           <div className="flex items-baseline justify-between gap-1 w-full">
             <span className="text-[9px] sm:text-[10px] line-through text-slate-400 font-sans font-medium shrink-0">
-              MRP: {formatINR(product.originalPrice || Math.round(product.price * 1.15))}
+              MRP: {formatINR(displayOriginalPrice)}
             </span>
             <span className="text-[13px] sm:text-[15px] font-black text-emerald-700 font-sans select-all">
-              {formatINR(product.price)}
+              {formatINR(displayPrice)}
             </span>
           </div>
 

@@ -250,7 +250,11 @@ export default function App() {
 
     // 3. Fetch products from Supabase
     const fetchProducts = async () => {
-      const { data } = await supabase.from('products').select('*');
+      const { data } = await supabase
+        .from('products')
+        .select('*, product_variants(*)')
+        .eq('status', 'Active')
+        .order('created_at', { ascending: false });
       if (data && data.length > 0) {
         setProducts(data.map((p: any) => normalizeProductRow(p)));
       }
