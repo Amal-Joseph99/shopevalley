@@ -147,6 +147,10 @@ export default function AdminPanel({
     fetchProducts();
   }, [onUpdateProducts]);
 
+  useEffect(() => {
+    if (activeTab === 'ads') fetchAdCampaigns();
+  }, [activeTab]);
+
 
 
   // Local/Interactive States for managing entity edits
@@ -181,6 +185,89 @@ export default function AdminPanel({
     primaryColor: '#7c3aed',
     accentColor: '#10b981'
   });
+
+  // Ads Management State
+  interface AdCampaignRow {
+    id: string;
+    title: string;
+    subtitle: string;
+    image_url: string;
+    link: string;
+    badge: string;
+    display_order: number;
+    status: string;
+    created_at: string;
+  }
+  const [adCampaigns, setAdCampaigns] = useState<AdCampaignRow[]>([]);
+  const [isAdsLoading, setIsAdsLoading] = useState(false);
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [editingAd, setEditingAd] = useState<AdCampaignRow | null>(null);
+  const [adForm, setAdForm] = useState({ title: '', subtitle: '', image_url: '', link: '', badge: '', display_order: 0 });
+  const [adSaving, setAdSaving] = useState(false);
+
+  const fetchAdCampaigns = async () => {
+    setIsAdsLoading(true);
+    const { data, error } = await supabase
+      .from('ad_campaigns')
+      .select('*')
+      .order('display_order', { ascending: true });
+    if (!error && data) setAdCampaigns(data);
+    setIsAdsLoading(false);
+  };
+
+  const handleSaveAd = async () => {
+    if (!adForm.title.trim() || !adForm.image_url.trim()) return;
+    setAdSaving(true);
+    if (editingAd) {
+      await supabase.from('ad_campaigns').update({
+        title: adForm.title.trim(),
+        subtitle: adForm.subtitle.trim(),
+        image_url: adForm.image_url.trim(),
+        link: adForm.link.trim(),
+        badge: adForm.badge.trim(),
+        display_order: adForm.display_order,
+        updated_at: new Date().toISOString()
+      }).eq('id', editingAd.id);
+    } else {
+      await supabase.from('ad_campaigns').insert({
+        title: adForm.title.trim(),
+        subtitle: adForm.subtitle.trim(),
+        image_url: adForm.image_url.trim(),
+        link: adForm.link.trim(),
+        badge: adForm.badge.trim(),
+        display_order: adForm.display_order
+      });
+    }
+    setAdSaving(false);
+    setShowAdModal(false);
+    setEditingAd(null);
+    setAdForm({ title: '', subtitle: '', image_url: '', link: '', badge: '', display_order: 0 });
+    fetchAdCampaigns();
+  };
+
+  const handleDeleteAd = async (id: string) => {
+    if (!confirm('Delete this ad campaign?')) return;
+    await supabase.from('ad_campaigns').delete().eq('id', id);
+    fetchAdCampaigns();
+  };
+
+  const handleToggleAdStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    await supabase.from('ad_campaigns').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+    fetchAdCampaigns();
+  };
+
+  const openEditAd = (ad: AdCampaignRow) => {
+    setEditingAd(ad);
+    setAdForm({ title: ad.title, subtitle: ad.subtitle || '', image_url: ad.image_url, link: ad.link || '', badge: ad.badge || '', display_order: ad.display_order });
+    setShowAdModal(true);
+  };
+
+  const openNewAd = () => {
+    setEditingAd(null);
+    setAdForm({ title: '', subtitle: '', image_url: '', link: '', badge: '', display_order: adCampaigns.length });
+    setShowAdModal(true);
+  };
 
   // New products attributes state for form
   const [newProd, setNewProd] = useState({
@@ -987,69 +1074,119 @@ export default function AdminPanel({
 
           {/* ======================= TAB 4: ADS MANAGEMENT ======================= */}
           {activeTab === 'ads' && (
-            <div className="space-y-8 text-left" id="admin_ads_management">
-              <div className="border-b border-slate-200 pb-4">
-                <h2 className="text-xl font-extrabold text-slate-900">Active Ad Campaigns</h2>
-                <p className="text-xs text-slate-500">Configure promotional imagery, click paths, and target deals shown live on the homepage.</p>
+            <div className="space-y-6 text-left" id="admin_ads_management">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900">Ad Campaigns</h2>
+                  <p className="text-xs text-slate-500">Manage homepage banner ads shown to buyers. Active ads rotate in the carousel.</p>
+                </div>
+                <button
+                  onClick={openNewAd}
+                  className="flex items-center gap-2 bg-[#7c3aed] text-white text-xs font-bold py-2.5 px-4 rounded-xl hover:bg-violet-700 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Add Campaign
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
-                {/* Promo Ad #1 Builder */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-                    <span className="text-xs font-mono font-bold text-amber-500 uppercase tracking-wide">First Promo Ad Banner (Electronics fallback)</span>
-                    <span className="text-[10px] font-black bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">URL SLUG</span>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-500">Static Banner Image URL</label>
-                      <input 
-                        type="text" 
-                        value={homepageSettings.bannerImage}
-                        onChange={(e) => setHomepageSettings(prev => ({ ...prev, bannerImage: e.target.value }))}
-                        className="w-full text-xs border border-slate-200 rounded-xl py-2 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                      />
+              {isAdsLoading ? (
+                <div className="text-center py-16">
+                  <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto"></div>
+                  <p className="text-xs text-slate-400 mt-3">Loading campaigns...</p>
+                </div>
+              ) : adCampaigns.length === 0 ? (
+                <div className="text-center py-16 bg-slate-50 rounded-2xl border border-slate-200">
+                  <Megaphone className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-slate-600">No ad campaigns yet</p>
+                  <p className="text-xs text-slate-400 mt-1">Create your first banner ad to display on the homepage.</p>
+                  <button onClick={openNewAd} className="mt-4 text-xs font-bold text-[#7c3aed] hover:underline cursor-pointer">+ Add First Campaign</button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {adCampaigns.map((ad) => (
+                    <div key={ad.id} className={`bg-white border rounded-2xl overflow-hidden shadow-xs transition-all ${ad.status === 'Active' ? 'border-emerald-200' : 'border-slate-200 opacity-70'}`}>
+                      <div className="relative h-36 bg-slate-100">
+                        <img src={ad.image_url} alt={ad.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <span className={`absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full ${ad.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-400 text-white'}`}>
+                          {ad.status}
+                        </span>
+                        {ad.badge && (
+                          <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{ad.badge}</span>
+                        )}
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <h4 className="font-bold text-sm text-slate-900 truncate">{ad.title}</h4>
+                        {ad.subtitle && <p className="text-[11px] text-slate-500 line-clamp-2">{ad.subtitle}</p>}
+                        {ad.link && <p className="text-[10px] font-mono text-violet-500 truncate">Link: {ad.link}</p>}
+                        <p className="text-[10px] text-slate-400">Order: {ad.display_order}</p>
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                          <button onClick={() => openEditAd(ad)} className="flex-1 text-[11px] font-bold text-slate-600 hover:text-violet-600 py-1.5 rounded-lg hover:bg-violet-50 transition-colors cursor-pointer">
+                            <Edit2 className="w-3 h-3 inline mr-1" />Edit
+                          </button>
+                          <button onClick={() => handleToggleAdStatus(ad.id, ad.status)} className={`flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-colors cursor-pointer ${ad.status === 'Active' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}>
+                            {ad.status === 'Active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button onClick={() => handleDeleteAd(ad.id)} className="text-[11px] font-bold text-red-500 hover:text-red-700 py-1.5 px-2 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-3 border border-slate-100 rounded-xl bg-slate-50/50">
-                      <p className="text-[11px] font-bold text-slate-600 mb-1">Live Ad Preview:</p>
-                      <img src={homepageSettings.bannerImage} alt="" className="w-full h-24 object-cover rounded-lg border border-slate-150" />
+                  ))}
+                </div>
+              )}
+
+              {/* Ad Campaign Modal */}
+              {showAdModal && (
+                <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-5">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="font-extrabold text-slate-900 text-sm">{editingAd ? 'Edit Campaign' : 'New Ad Campaign'}</h3>
+                      <button onClick={() => { setShowAdModal(false); setEditingAd(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-5 h-5" /></button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Title *</label>
+                        <input type="text" value={adForm.title} onChange={(e) => setAdForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Summer Sale 50% Off" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Subtitle</label>
+                        <input type="text" value={adForm.subtitle} onChange={(e) => setAdForm(p => ({ ...p, subtitle: e.target.value }))} placeholder="e.g. Limited time offer on electronics" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Banner Image URL *</label>
+                        <input type="text" value={adForm.image_url} onChange={(e) => setAdForm(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500 font-mono" />
+                        {adForm.image_url && (
+                          <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 h-28">
+                            <img src={adForm.image_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Click Link (route)</label>
+                          <input type="text" value={adForm.link} onChange={(e) => setAdForm(p => ({ ...p, link: e.target.value }))} placeholder="e.g. category/electronics" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500 font-mono" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Badge Label</label>
+                          <input type="text" value={adForm.badge} onChange={(e) => setAdForm(p => ({ ...p, badge: e.target.value }))} placeholder="e.g. HOT DEAL" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Display Order</label>
+                        <input type="number" value={adForm.display_order} onChange={(e) => setAdForm(p => ({ ...p, display_order: parseInt(e.target.value) || 0 }))} className="w-24 text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                      <button onClick={() => { setShowAdModal(false); setEditingAd(null); }} className="px-4 py-2 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer">Cancel</button>
+                      <button onClick={handleSaveAd} disabled={adSaving || !adForm.title.trim() || !adForm.image_url.trim()} className="px-5 py-2 text-xs font-bold text-white bg-[#7c3aed] rounded-xl hover:bg-violet-700 disabled:opacity-50 cursor-pointer">
+                        {adSaving ? 'Saving...' : editingAd ? 'Update Campaign' : 'Create Campaign'}
+                      </button>
                     </div>
                   </div>
                 </div>
-
-                {/* Promo Ad #2 Builder */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-                    <span className="text-xs font-mono font-bold text-amber-500 uppercase tracking-wide">Second Promo Ad Banner (Fashion fallback)</span>
-                    <span className="text-[10px] font-black bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">URL SLUG</span>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-500">Static Banner Image URL</label>
-                      <input 
-                        type="text" 
-                        value={homepageSettings.bannerImageTwo}
-                        onChange={(e) => setHomepageSettings(prev => ({ ...prev, bannerImageTwo: e.target.value }))}
-                        className="w-full text-xs border border-slate-200 rounded-xl py-2 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                      />
-                    </div>
-                    <div className="p-3 border border-slate-100 rounded-xl bg-slate-50/50">
-                      <p className="text-[11px] font-bold text-slate-600 mb-1">Live Ad Preview:</p>
-                      <img src={homepageSettings.bannerImageTwo} alt="" className="w-full h-24 object-cover rounded-lg border border-slate-150" />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="p-5 border border-[#7c3aed]/10 bg-[#FAF9FF] rounded-2xl text-center">
-                <p className="text-xs font-bold text-slate-700">Campaign sync completed.</p>
-                <p className="text-[11px] text-slate-550 text-slate-500">All modifications are updated instantly across your frontstage browsing paths.</p>
-              </div>
-
+              )}
             </div>
           )}
 
