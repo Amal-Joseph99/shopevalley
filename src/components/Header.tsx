@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { RouteState } from './CustomRouter';
 import { LoggedUser } from '../types';
+import { supabase } from '../lib/supabaseClient';
 
 interface HeaderProps {
   cartCount: number;
@@ -73,23 +74,22 @@ export default function Header({
   const [editState, setEditState] = useState('Karnataka');
   const [editCountry, setEditCountry] = useState('India');
 
-  // Categories list mapped directly to existing models
-  const categoriesList = [
-    'All',
-    'Combo Offers',
-    'Fashion',
-    'Electronics',
-    'Mobile & Accessories',
-    'Beauty & Personal Care',
-    'Home Appliances',
-    'PC & Laptops',
-    'Sports & Fitness',
-    'Furniture',
-    'Toys',
-    'Baby Care',
-    'Books',
-    'eBooks'
-  ];
+  // Categories list - fetched from Supabase
+  const [categoriesList, setCategoriesList] = useState<string[]>(['All']);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data } = await supabase
+        .from('categories')
+        .select('name')
+        .eq('status', 'Active')
+        .order('name', { ascending: true });
+      if (data && data.length > 0) {
+        setCategoriesList(['All', ...data.map(c => c.name)]);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Geolocation detection logic
   const handleAutoDetectLocation = async () => {
@@ -767,25 +767,15 @@ export default function Header({
               <span>☰ ALL</span>
             </button>
   
-            {/* Mapped clean items block */}
-            {[
-              { label: 'Electronics', path: 'category/Electronics' },
-              { label: 'Fashion', path: 'category/Fashion' },
-              { label: 'Beauty', path: 'category/Beauty & Personal Care' },
-              { label: 'Home Appliances', path: 'category/Home Appliances' },
-              { label: 'Mobile', path: 'category/Mobile & Accessories' },
-              { label: 'Sports', path: 'category/Sports & Fitness' }
-            ].map((navInfo, index) => {
-              const isSelected = selectedCategoryFilter && navInfo.path && navInfo.path.includes(selectedCategoryFilter);
+            {/* Mapped clean items block - dynamic from DB */}
+            {categoriesList.filter(c => c !== 'All').slice(0, 6).map((catName, index) => {
+              const isSelected = selectedCategoryFilter === catName;
               return (
                 <button
                   key={index}
                   onClick={() => {
-                    if (navInfo.path) {
-                      const cleanCategory = navInfo.path.replace('category/', '');
-                      setSelectedCategoryFilter(cleanCategory);
-                      onNavigate(navInfo.path);
-                    }
+                    setSelectedCategoryFilter(catName);
+                    onNavigate(`category/${catName}`);
                   }}
                   className={`hover:ring-1 hover:ring-white px-2.5 py-1 rounded text-[11px] transition-all cursor-pointer inline-flex items-center gap-1 shrink-0 whitespace-nowrap truncate max-w-[140px] ${
                     isSelected 
@@ -793,7 +783,7 @@ export default function Header({
                       : 'text-slate-100 font-bold'
                   }`}
                 >
-                  <span className="truncate">{navInfo.label}</span>
+                  <span className="truncate">{catName}</span>
                 </button>
               );
             })}
@@ -856,31 +846,17 @@ export default function Header({
                   Shop By Department
                 </span>
                 
-                {[
-                  { name: 'Combo Offers', path: 'category/Combo Offers' },
-                  { name: 'Fashion', path: 'category/Fashion' },
-                  { name: 'Electronics', path: 'category/Electronics' },
-                  { name: 'Mobile & Accessories', path: 'category/Mobile & Accessories' },
-                  { name: 'Beauty & Personal Care', path: 'category/Beauty & Personal Care' },
-                  { name: 'Home Appliances', path: 'category/Home Appliances' },
-                  { name: 'PC & Laptops', path: 'category/PC & Laptops' },
-                  { name: 'Sports & Fitness', path: 'category/Sports & Fitness' },
-                  { name: 'Furniture', path: 'category/Furniture' },
-                  { name: 'Toys', path: 'category/Toys' },
-                  { name: 'Baby Care', path: 'category/Baby Care' },
-                  { name: 'Books', path: 'category/Books' },
-                  { name: 'eBooks', path: 'category/eBooks' }
-                ].map((dept, index) => (
+                {categoriesList.filter(c => c !== 'All').map((catName, index) => (
                   <button
                     key={index}
                     onClick={() => {
-                      setSelectedCategoryFilter(dept.name);
-                      onNavigate(dept.path);
+                      setSelectedCategoryFilter(catName);
+                      onNavigate(`category/${catName}`);
                       setIsCategoryDrawerOpen(false);
                     }}
                     className="w-full h-12 px-4 hover:bg-slate-100 font-extrabold text-[#0F1111] text-xs flex items-center justify-between transition-colors cursor-pointer rounded-lg text-left"
                   >
-                    <span>{dept.name}</span>
+                    <span>{catName}</span>
                     <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                   </button>
                 ))}
