@@ -26,6 +26,7 @@ import {
   Trash2, 
   Check, 
   X, 
+  AlertTriangle,
   RefreshCw,
   Send,
   Sparkles
@@ -47,6 +48,8 @@ interface AdminPanelProps {
   onUpdateOrders?: (orders: Order[]) => void;
 }
 
+type AdminTab = 'dashboard' | 'category' | 'products' | 'ads' | 'orders' | 'homepage' | 'accounts' | 'inbox';
+
 export default function AdminPanel({
   products,
   onAddProduct,
@@ -61,12 +64,33 @@ export default function AdminPanel({
   const { route, navigate } = useHashRouter();
 
   // Navigation tabs state
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'category' | 'products' | 'ads' | 'orders' | 'homepage' | 'accounts' | 'inbox'>('dashboard');
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(false);
   const [productFetchError, setProductFetchError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [adminDialog, setAdminDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    tone?: 'default' | 'danger';
+    onConfirm?: () => void | Promise<void>;
+  }>({ open: false, title: '', message: '' });
+
+  const showAdminMessage = (title: string, message: string) => {
+    setAdminDialog({ open: true, title, message, confirmLabel: 'OK' });
+  };
+
+  const showAdminConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void | Promise<void>,
+    confirmLabel = 'Confirm'
+  ) => {
+    setAdminDialog({ open: true, title, message, confirmLabel, tone: 'danger', onConfirm });
+  };
 
   const normalizeProductRow = (row: any): Product => ({
     id: String(row.id || row.idKey || ''),
@@ -105,11 +129,17 @@ export default function AdminPanel({
 
   // Synchronize route paths to active tab
   useEffect(() => {
-    if (route.path === 'admin/categories') {
-      setActiveTab('category');
-    } else if (route.path === 'admin') {
-      setActiveTab('dashboard');
-    }
+    const routeToTab: Record<string, AdminTab> = {
+      admin: 'dashboard',
+      'admin/categories': 'category',
+      'admin/products': 'products',
+      'admin/ads': 'ads',
+      'admin/orders': 'orders',
+      'admin/homepage': 'homepage',
+      'admin/accounts': 'accounts',
+      'admin/inbox': 'inbox'
+    };
+    setActiveTab(routeToTab[route.path] || 'dashboard');
   }, [route.path]);
 
   useEffect(() => {
@@ -259,12 +289,13 @@ export default function AdminPanel({
   };
 
   const handleDeleteAd = async (id: string, imagePath: string) => {
-    if (!confirm('Delete this banner ad?')) return;
-    if (imagePath) {
-      await supabase.storage.from('ad-banners').remove([imagePath]);
-    }
-    await supabase.from('ad_campaigns').delete().eq('id', id);
-    fetchAdCampaigns();
+    showAdminConfirm('Delete Banner Ad', 'Delete this banner from the homepage carousel?', async () => {
+      if (imagePath) {
+        await supabase.storage.from('ad-banners').remove([imagePath]);
+      }
+      await supabase.from('ad_campaigns').delete().eq('id', id);
+      fetchAdCampaigns();
+    }, 'Delete');
   };
 
   // Homepage Sections Management
@@ -493,33 +524,29 @@ export default function AdminPanel({
   };
 
   const handleDeleteProduct = async (productId: string, productName: string) => {
-    if (!confirm(`Are you sure you want to delete ${productName} from active workshop rosters?`)) {
-      return;
-    }
+    showAdminConfirm('Delete Product', `Delete "${productName}" and remove it from the catalog?`, async () => {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId);
 
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', productId);
-
-    if (error) {
-      alert(`Unable to delete product: ${error.message}`);
-      return;
-    }
-
-    setDbProducts(prev => {
-      const next = prev.filter(p => p.id !== productId);
-      if (onUpdateProducts) {
-        onUpdateProducts(next);
+      if (error) {
+        showAdminMessage('Delete Failed', `Unable to delete product: ${error.message}`);
+        return;
       }
-      return next;
-    });
 
-    if (onDeleteProduct) {
-      onDeleteProduct(productId);
-    }
+      setDbProducts(prev => {
+        const next = prev.filter(p => p.id !== productId);
+        if (onUpdateProducts) {
+          onUpdateProducts(next);
+        }
+        return next;
+      });
 
-    alert('Product deleted from DB.');
+      if (onDeleteProduct) {
+        onDeleteProduct(productId);
+      }
+    }, 'Delete');
   };
 
   // Handle category creation
@@ -538,7 +565,7 @@ export default function AdminPanel({
     const freshOrders = await fetchAllOrders();
     setAdminOrders(freshOrders);
     if (onUpdateOrders) onUpdateOrders(freshOrders);
-    alert(`Order #${orderId} status modified to "${value}" successfully!`);
+    showAdminMessage('Order Updated', `Order #${orderId} status changed to "${value}".`);
   };
 
   return (
@@ -549,13 +576,13 @@ export default function AdminPanel({
         
         <div>
           {/* Logo / Brand Header */}
-          <div className="flex items-center gap-3.5 mb-10 px-3 cursor-pointer" onClick={() => onNavigate('')}>
+          <div className="flex items-center gap-3.5 mb-10 px-3 cursor-pointer" onClick={() => navigate('admin')}>
             <div className="bg-[#7c3aed] text-white p-2.5 rounded-xl shadow-md shadow-violet-200 flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-white animate-pulse" />
             </div>
             <div>
-              <h2 className="font-sans font-black text-slate-900 text-lg tracking-tight">E-Commerce</h2>
-              <p className="text-[9px] font-mono font-bold tracking-wider text-[#7c3aed] uppercase leading-none mt-0.5">Admin Central</p>
+              <h2 className="font-sans font-black text-slate-900 text-lg tracking-tight">ShopeValley</h2>
+              <p className="text-[9px] font-mono font-bold tracking-wider text-[#7c3aed] uppercase leading-none mt-0.5">Admin Panel</p>
             </div>
           </div>
 
@@ -566,12 +593,12 @@ export default function AdminPanel({
             {[
               { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: 'admin' },
               { id: 'category', label: 'Category', icon: Tag, path: 'admin/categories' },
-              { id: 'products', label: 'Products', icon: ShoppingBag, path: 'admin' },
-              { id: 'ads', label: 'Ads Management', icon: Megaphone, path: 'admin' },
-              { id: 'orders', label: 'Orders', icon: ClipboardList, path: 'admin' },
-              { id: 'homepage', label: 'Homepage Sections', icon: Home, path: 'admin' },
-              { id: 'accounts', label: 'Accounts', icon: UserCheck, path: 'admin' },
-              { id: 'inbox', label: 'Inbox Support', icon: MessageSquare, path: 'admin' }
+              { id: 'products', label: 'Products', icon: ShoppingBag, path: 'admin/products' },
+              { id: 'ads', label: 'Ads Management', icon: Megaphone, path: 'admin/ads' },
+              { id: 'orders', label: 'Orders', icon: ClipboardList, path: 'admin/orders' },
+              { id: 'homepage', label: 'Homepage Sections', icon: Home, path: 'admin/homepage' },
+              { id: 'accounts', label: 'Accounts', icon: UserCheck, path: 'admin/accounts' },
+              { id: 'inbox', label: 'Inbox Support', icon: MessageSquare, path: 'admin/inbox' }
             ].map((tab) => {
               const TabIcon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -579,7 +606,6 @@ export default function AdminPanel({
                 <button
                   key={tab.id}
                   onClick={() => {
-                    setActiveTab(tab.id as any);
                     navigate(tab.path);
                   }}
                   className={`w-full py-3 px-4 rounded-xl text-left font-bold text-xs flex items-center gap-3.5 transition-all outline-none ${
@@ -599,7 +625,7 @@ export default function AdminPanel({
         {/* Lower System buttons */}
         <div className="pt-8 border-t border-[#EBEFF5] space-y-1 mt-8" id="sidebar_footer_actions">
           <button 
-            onClick={() => alert("Administrative parameters initialized. System clean.")}
+            onClick={() => showAdminMessage('Settings', 'Settings page is not connected yet.')}
             className="w-full py-2.5 px-4 rounded-xl text-left font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-900 text-xs flex items-center gap-3 transition-colors"
           >
             <Settings className="w-4.5 h-4.5 text-slate-400" />
@@ -607,11 +633,7 @@ export default function AdminPanel({
           </button>
           
           <button 
-            onClick={() => {
-              if (window.confirm('Are you sure you want to logout?')) {
-                onLogout();
-              }
-            }}
+            onClick={() => showAdminConfirm('Log Out', 'Are you sure you want to log out of the admin panel?', onLogout, 'Log Out')}
             className="w-full py-2.5 px-4 rounded-xl text-left font-semibold text-[#D11A2A] hover:bg-red-50 text-xs flex items-center gap-3 transition-colors"
           >
             <LogOut className="w-4.5 h-4.5 text-red-500" />
@@ -652,12 +674,12 @@ export default function AdminPanel({
           {/* User profile section right */}
           <div className="flex items-center gap-5">
             {/* Notification and mail icons with counter count badges exactly like screenshot */}
-            <button className="relative p-2.5 hover:bg-slate-50 rounded-full transition-colors" onClick={() => alert("Alert mailbox is synchronized and up-to-date with secure dispatch lists.")}>
+            <button className="relative p-2.5 hover:bg-slate-50 rounded-full transition-colors" onClick={() => showAdminMessage('Notifications', 'No admin notifications are connected yet.')}>
               <Bell className="w-4.5 h-4.5 text-slate-600" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#E53935]" />
             </button>
             
-            <button className="relative p-2.5 hover:bg-slate-50 rounded-full transition-colors" onClick={() => setActiveTab('inbox')}>
+            <button className="relative p-2.5 hover:bg-slate-50 rounded-full transition-colors" onClick={() => navigate('admin/inbox')}>
               <Mail className="w-4.5 h-4.5 text-slate-600" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#7c3aed]" />
             </button>
@@ -1766,6 +1788,42 @@ export default function AdminPanel({
                 Publish Product Live
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {adminDialog.open && (
+        <div className="fixed inset-0 z-[1200] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full p-6 text-left">
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${adminDialog.tone === 'danger' ? 'bg-red-50 text-red-600' : 'bg-violet-50 text-[#7c3aed]'}`}>
+                {adminDialog.tone === 'danger' ? <AlertTriangle className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+              </div>
+              <div className="flex-grow">
+                <h3 className="text-sm font-black text-slate-900">{adminDialog.title}</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{adminDialog.message}</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-6">
+              {adminDialog.onConfirm && (
+                <button
+                  onClick={() => setAdminDialog(prev => ({ ...prev, open: false }))}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={async () => {
+                  const action = adminDialog.onConfirm;
+                  setAdminDialog(prev => ({ ...prev, open: false }));
+                  if (action) await action();
+                }}
+                className={`px-5 py-2 rounded-xl text-xs font-bold text-white ${adminDialog.tone === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#7c3aed] hover:bg-violet-700'}`}
+              >
+                {adminDialog.confirmLabel || 'OK'}
+              </button>
+            </div>
           </div>
         </div>
       )}

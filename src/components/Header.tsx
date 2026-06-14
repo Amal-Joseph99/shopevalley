@@ -58,6 +58,7 @@ export default function Header({
   const [showAccountPopover, setShowAccountPopover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Address Geolocation States
   const [userLocation, setUserLocation] = useState({
@@ -370,9 +371,7 @@ export default function Header({
                       <button 
                         onClick={() => {
                           setShowAccountPopover(false);
-                          if (window.confirm('Are you sure you want to logout?')) {
-                            onLogout();
-                          }
+                          setShowLogoutConfirm(true);
                         }}
                         className="w-full h-12 px-4 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-extrabold text-xs flex items-center gap-3.5 transition-colors rounded-lg cursor-pointer"
                       >
@@ -857,9 +856,7 @@ export default function Header({
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
-                      if (window.confirm('Are you sure you want to logout?')) {
-                        onLogout();
-                      }
+                      setShowLogoutConfirm(true);
                     }}
                     className="w-full h-11 px-3.5 hover:bg-rose-50 text-rose-600 font-bold text-xs flex items-center gap-3 transition-colors cursor-pointer mt-2"
                   >
@@ -884,6 +881,34 @@ export default function Header({
 
           </div>
 
+        </div>
+      )}
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[1200] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-sm w-full p-6 text-left">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                <LogOut className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Log Out</h3>
+                <p className="text-xs text-slate-500 mt-1">Are you sure you want to log out?</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-6">
+              <button onClick={() => setShowLogoutConfirm(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  onLogout();
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

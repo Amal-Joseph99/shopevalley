@@ -98,7 +98,7 @@ export default function App() {
     if (!path || path === '/' || path === 'login' || path === 'register' || path === 'verify-otp' || path === 'forgot-password' || path === 'reset-password' || path === 'wishlist') {
       return true;
     }
-    if (path === 'admin') {
+    if (path === 'admin' || path.startsWith('admin/')) {
       return true;
     }
     if (path.startsWith('category/') || path.startsWith('section/')) {
@@ -128,14 +128,14 @@ export default function App() {
   };
 
   const isAdminOnlyPath = (path: string) => {
-    return path === 'admin';
+    return path === 'admin' || path.startsWith('admin/');
   };
 
   const handleProtectedNavigate = (path: string, options?: { page?: number; q?: string }) => {
     const normalized = path.replace(/^#\/?/, '');
 
     // Admin users can ONLY access the admin dashboard
-    if (currentUser?.role === 'ADMIN' && normalized !== 'admin') {
+    if (currentUser?.role === 'ADMIN' && normalized !== 'admin' && !normalized.startsWith('admin/')) {
       navigate('admin');
       return;
     }
@@ -280,7 +280,7 @@ export default function App() {
     const normalized = route.path || '/';
 
     // Admin users can ONLY access admin dashboard
-    if (currentUser?.role === 'ADMIN' && normalized !== 'admin') {
+    if (currentUser?.role === 'ADMIN' && normalized !== 'admin' && !normalized.startsWith('admin/')) {
       navigate('admin');
       return;
     }
@@ -403,7 +403,7 @@ export default function App() {
       {/* Mock URL bar removed per user request */}
 
       {/* 2. Global Header Navigation Modules */}
-      {route.path !== 'admin' && (
+      {!route.path.startsWith('admin') && (
         <Header 
           cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
           wishlistCount={wishlist.length}
@@ -621,7 +621,7 @@ export default function App() {
         ) : null}
 
         {/* VIEW: ADMINISTRATIVE BUSINESS PORTAL CONSOLE */}
-        {route.path === 'admin' ? (
+        {route.path.startsWith('admin') ? (
           <AdminPanel 
             products={products}
             onAddProduct={handleAddProduct}
@@ -738,7 +738,7 @@ export default function App() {
       )}
 
          {/* 4. FOOTER CREDITS AREA */}
-      {route.path !== 'admin' && (
+      {!route.path.startsWith('admin') && (
         <footer className="bg-[#0f172a] text-slate-300 border-t border-slate-800 py-8 px-6 md:px-12 text-xs font-sans">
         <div className="max-w-7xl mx-auto">
           

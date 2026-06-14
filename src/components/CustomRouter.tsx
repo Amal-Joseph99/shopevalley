@@ -66,7 +66,7 @@ export function parseHash(hash: string): RouteState {
   } else if (segments[0] === 'reset-password') {
     routeState.path = 'reset-password';
   } else if (segments[0] === 'admin') {
-    routeState.path = 'admin';
+    routeState.path = segments.length > 1 ? `admin/${segments[1]}` : 'admin';
   } else if (segments[0] === 'profile') {
     routeState.path = 'profile';
   } else if (segments[0] === 'my-orders') {

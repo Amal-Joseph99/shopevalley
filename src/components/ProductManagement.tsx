@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { uploadProductImage, uploadProductVideo } from '../lib/productService';
+import { useHashRouter } from './CustomRouter';
 
 // ─── TYPES ───────────────────────────────────────────────────────────
 interface ProductRow {
@@ -72,6 +73,11 @@ function generateVariantId(): string {
   return result;
 }
 
+function buildProductSlug(name: string, sku: string): string {
+  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') || 'product';
+  return `${base}-${sku.toLowerCase()}`;
+}
+
 // ─── IMAGE UPLOAD ITEM ───────────────────────────────────────────────
 interface UploadingImage {
   file: File;
@@ -83,6 +89,8 @@ interface UploadingImage {
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────
 export default function ProductManagement() {
+  const { route, rawHash } = useHashRouter();
+
   // View state
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -98,6 +106,7 @@ export default function ProductManagement() {
   // ═══ FORM STATE ═══
   const [formStep, setFormStep] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState('');
 
@@ -227,7 +236,10 @@ export default function ProductManagement() {
       }
     }
 
-    setVariants(newVariants);
+    setVariants(prev => newVariants.map((variant, index) => {
+      const existing = prev.find(item => item.size === variant.size && item.colour === variant.colour) || prev[index];
+      return existing ? { ...variant, ...existing, size: variant.size, colour: variant.colour } : variant;
+    }));
   }, []);
 
   // Regenerate variants when sizes/colours change
@@ -327,22 +339,32 @@ export default function ProductManagement() {
   };
 
   // ═══ FORM ACTIONS ═══
-  const openAddForm = () => {
+  const updateProductFormRoute = (productId: string | null, step: number) => {
+    const params = new URLSearchParams();
+    params.set('view', 'form');
+    params.set('step', String(step));
+    if (productId) params.set('productId', productId);
+    window.location.hash = `#/admin/products?${params.toString()}`;
+  };
+
+  const openAddForm = (pushRoute = true) => {
     resetForm();
     setProductSku(generateSKU());
     setView('form');
     setFormStep(1);
     setEditingProductId(null);
+    if (pushRoute) updateProductFormRoute(null, 1);
   };
 
-  const openEditForm = async (product: ProductRow) => {
+  const openEditForm = async (product: ProductRow, step = 1, pushRoute = true) => {
     resetForm();
     setEditingProductId(product.id);
     setProductSku(product.sku);
     setProductName(product.name);
     setBrand(product.brand || '');
     setView('form');
-    setFormStep(1);
+    setFormStep(step);
+    if (pushRoute) updateProductFormRoute(product.id, step);
 
     // Fetch full product data
     const { data } = await supabase.from('products').select('*').eq('id', product.id).single();
@@ -406,6 +428,43 @@ export default function ProductManagement() {
     }
   };
 
+  const openEditFormById = async (productId: string, step: number) => {
+    const { data } = await supabase
+      .from('products')
+      .select('id, sku, name, brand, category, sub_category, product_type, status, images, created_at')
+      .eq('id', productId)
+      .single();
+
+    if (data) {
+      await openEditForm({
+        ...data,
+        images: data.images || [],
+        status: data.status || 'Draft'
+      } as ProductRow, step, false);
+    }
+  };
+
+  useEffect(() => {
+    if (route.path !== 'admin/products') return;
+
+    const params = new URLSearchParams(rawHash.split('?')[1] || '');
+    const routeView = params.get('view');
+    const productId = params.get('productId');
+    const step = Math.min(4, Math.max(1, Number(params.get('step') || 1)));
+
+    if (routeView === 'form') {
+      if (productId && productId !== editingProductId) {
+        openEditFormById(productId, step);
+      } else {
+        if (view !== 'form') openAddForm(false);
+        setFormStep(step);
+      }
+    } else if (view === 'form') {
+      setView('list');
+      resetForm();
+    }
+  }, [route.path, rawHash]);
+
   const resetForm = () => {
     setProductSku('');
     setProductName('');
@@ -432,6 +491,108 @@ export default function ProductManagement() {
     setEditingProductId(null);
   };
 
+  const getUploadedImages = () => baseImages.filter(img => img.url && !img.error).map(img => img.url!);
+
+  const buildProductPayload = (status: 'Draft' | 'Active', skuOverride = productSku) => {
+    const categoryName = categoryOptions.find(c => c.id === selectedCategoryId)?.name || '';
+    const subCategoryName = subCategoryOptions.find(s => s.id === selectedSubCategoryId)?.name || '';
+    const productTypeName = productTypeOptions.find(p => p.id === selectedProductTypeId)?.name || '';
+    const pricedVariants = variants.filter(v => v.price > 0);
+    const baseVariant = pricedVariants[0] || variants[0];
+
+    return {
+      id_key: skuOverride,
+      sku: skuOverride,
+      name: productName.trim(),
+      slug: buildProductSlug(productName.trim(), skuOverride),
+      price: baseVariant?.price || 0,
+      original_price: baseVariant?.mrp || null,
+      stock: variants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0),
+      brand: brand.trim(),
+      category_id: selectedCategoryId || null,
+      category: categoryName,
+      sub_category_id: selectedSubCategoryId || null,
+      sub_category: subCategoryName,
+      product_type_id: selectedProductTypeId || null,
+      product_type: productTypeName,
+      hsn_code: hsnCode,
+      short_description: shortDescription.trim(),
+      description: fullDescription.trim(),
+      tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      images: getUploadedImages(),
+      video_url: videoFile?.url || null,
+      package_weight: packageWeight ? parseFloat(packageWeight) : null,
+      package_length: packageLength ? parseFloat(packageLength) : null,
+      package_width: packageWidth ? parseFloat(packageWidth) : null,
+      package_height: packageHeight ? parseFloat(packageHeight) : null,
+      status,
+      updated_at: new Date().toISOString()
+    };
+  };
+
+  const saveProductDraft = async (nextStep: number) => {
+    setSaveError('');
+    setSaveSuccess('');
+
+    if (!productName.trim()) { setSaveError('Product Name is required before saving a draft'); setFormStep(1); return; }
+    if (!brand.trim()) { setSaveError('Brand is required before saving a draft'); setFormStep(1); return; }
+    if (!selectedCategoryId) { setSaveError('Category is required before saving a draft'); setFormStep(1); return; }
+    if (!selectedSubCategoryId) { setSaveError('Sub Category is required before saving a draft'); setFormStep(1); return; }
+    if (!selectedProductTypeId) { setSaveError('Product Type is required before saving a draft'); setFormStep(1); return; }
+
+    setIsDraftSaving(true);
+    const skuForSave = productSku || generateSKU();
+    if (!productSku) setProductSku(skuForSave);
+
+    try {
+      let productId = editingProductId;
+      const draftPayload = buildProductPayload('Draft', skuForSave);
+
+      if (productId) {
+        const { error } = await supabase.from('products').update(draftPayload).eq('id', productId);
+        if (error) throw new Error(error.message);
+      } else {
+        const { data, error } = await supabase
+          .from('products')
+          .insert({ ...draftPayload, created_at: new Date().toISOString() })
+          .select('id')
+          .single();
+        if (error) throw new Error(error.message);
+        productId = data.id;
+        setEditingProductId(productId);
+      }
+
+      await supabase.from('product_variants').delete().eq('product_id', productId!);
+      if (variants.length > 0) {
+        const variantRows = variants.map(v => ({
+          product_id: productId!,
+          variant_id: v.variant_id,
+          sku: v.sku,
+          size: v.size,
+          colour: v.colour || null,
+          price: v.price || 0,
+          mrp: v.mrp || 0,
+          stock: v.stock || 0,
+          images: v.images,
+          status: 'Active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+        const { error: vError } = await supabase.from('product_variants').insert(variantRows);
+        if (vError) throw new Error(vError.message);
+      }
+
+      setFormStep(nextStep);
+      setSaveSuccess('Draft saved. You can safely continue later.');
+      updateProductFormRoute(productId!, nextStep);
+      await fetchProducts();
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save draft');
+    } finally {
+      setIsDraftSaving(false);
+    }
+  };
+
   // ═══ SAVE PRODUCT ═══
   const handleSaveProduct = async () => {
     setSaveError('');
@@ -444,7 +605,7 @@ export default function ProductManagement() {
     if (!selectedSubCategoryId) { setSaveError('Sub Category is required'); setFormStep(1); return; }
     if (!selectedProductTypeId) { setSaveError('Product Type is required'); setFormStep(1); return; }
 
-    const uploadedImages = baseImages.filter(img => img.url && !img.error).map(img => img.url!);
+    const uploadedImages = getUploadedImages();
     if (uploadedImages.length < 3) { setSaveError('Minimum 3 images are required'); setFormStep(2); return; }
 
     const hasValidVariant = variants.some(v => v.price > 0 && v.stock > 0);
@@ -452,41 +613,7 @@ export default function ProductManagement() {
 
     setIsSaving(true);
 
-    const categoryName = categoryOptions.find(c => c.id === selectedCategoryId)?.name || '';
-    const subCategoryName = filteredSubCategories.find(s => s.id === selectedSubCategoryId)?.name || '';
-    const productTypeName = filteredProductTypes.find(p => p.id === selectedProductTypeId)?.name || '';
-    const validVariants = variants.filter(v => v.price > 0 || v.stock > 0);
-    const pricedVariants = validVariants.filter(v => v.price > 0);
-    const baseVariant = pricedVariants[0] || validVariants[0];
-
-    const productPayload = {
-      id_key: productSku,
-      sku: productSku,
-      name: productName.trim(),
-      slug: productName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
-      price: baseVariant?.price || 0,
-      original_price: baseVariant?.mrp || null,
-      stock: validVariants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0),
-      brand: brand.trim(),
-      category_id: selectedCategoryId,
-      category: categoryName,
-      sub_category_id: selectedSubCategoryId,
-      sub_category: subCategoryName,
-      product_type_id: selectedProductTypeId,
-      product_type: productTypeName,
-      hsn_code: hsnCode,
-      short_description: shortDescription.trim(),
-      description: fullDescription.trim(),
-      tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-      images: uploadedImages,
-      video_url: videoFile?.url || null,
-      package_weight: packageWeight ? parseFloat(packageWeight) : null,
-      package_length: packageLength ? parseFloat(packageLength) : null,
-      package_width: packageWidth ? parseFloat(packageWidth) : null,
-      package_height: packageHeight ? parseFloat(packageHeight) : null,
-      status: 'Active' as const,
-      updated_at: new Date().toISOString()
-    };
+    const productPayload = buildProductPayload('Active');
 
     try {
       let productId = editingProductId;
@@ -510,7 +637,7 @@ export default function ProductManagement() {
       // Delete existing variants and re-insert
       await supabase.from('product_variants').delete().eq('product_id', productId!);
 
-      const variantRows = validVariants.map(v => ({
+      const variantRows = variants.map(v => ({
         product_id: productId!,
         variant_id: v.variant_id,
         sku: v.sku,
@@ -532,7 +659,11 @@ export default function ProductManagement() {
 
       setSaveSuccess(editingProductId ? 'Product updated successfully!' : 'Product created successfully!');
       await fetchProducts();
-      setTimeout(() => { setView('list'); resetForm(); }, 1500);
+      setTimeout(() => {
+        setView('list');
+        resetForm();
+        window.location.hash = '#/admin/products';
+      }, 1500);
     } catch (err: any) {
       setSaveError(err.message || 'Failed to save product');
     } finally {
@@ -772,7 +903,7 @@ export default function ProductManagement() {
           </h1>
           <p className="text-xs text-slate-500">Fill in all sections below. SKU is auto-generated.</p>
         </div>
-        <button onClick={() => { setView('list'); resetForm(); }} className="text-slate-500 hover:text-slate-800 p-2 hover:bg-slate-100 rounded-xl transition-colors">
+        <button onClick={() => { setView('list'); resetForm(); window.location.hash = '#/admin/products'; }} className="text-slate-500 hover:text-slate-800 p-2 hover:bg-slate-100 rounded-xl transition-colors">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -787,7 +918,14 @@ export default function ProductManagement() {
         ].map(step => (
           <button
             key={step.num}
-            onClick={() => setFormStep(step.num)}
+            onClick={() => {
+              if (step.num > formStep) {
+                saveProductDraft(step.num);
+              } else {
+                setFormStep(step.num);
+                updateProductFormRoute(editingProductId, step.num);
+              }
+            }}
             className={`flex-1 py-2.5 text-center text-xs font-bold rounded-xl transition-all cursor-pointer ${
               formStep === step.num
                 ? 'bg-[#7c3aed] text-white shadow-sm'
@@ -936,7 +1074,8 @@ export default function ProductManagement() {
           </div>
 
           <div className="flex justify-end pt-3 border-t border-slate-100">
-            <button onClick={() => setFormStep(2)} className="bg-[#7c3aed] text-white font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-violet-700">
+            <button onClick={() => saveProductDraft(2)} disabled={isDraftSaving} className="bg-[#7c3aed] text-white font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-violet-700 disabled:opacity-50 flex items-center gap-2">
+              {isDraftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               Next: Images &rarr;
             </button>
           </div>
@@ -1083,10 +1222,11 @@ export default function ProductManagement() {
           </div>
 
           <div className="flex justify-between pt-3 border-t border-slate-100">
-            <button onClick={() => setFormStep(1)} className="border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-slate-50">
+            <button onClick={() => { setFormStep(1); updateProductFormRoute(editingProductId, 1); }} className="border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-slate-50">
               &larr; Back
             </button>
-            <button onClick={() => setFormStep(3)} className="bg-[#7c3aed] text-white font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-violet-700">
+            <button onClick={() => saveProductDraft(3)} disabled={isDraftSaving} className="bg-[#7c3aed] text-white font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-violet-700 disabled:opacity-50 flex items-center gap-2">
+              {isDraftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               Next: Variants &rarr;
             </button>
           </div>
@@ -1278,10 +1418,11 @@ export default function ProductManagement() {
           )}
 
           <div className="flex justify-between pt-3 border-t border-slate-100">
-            <button onClick={() => setFormStep(2)} className="border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-slate-50">
+            <button onClick={() => { setFormStep(2); updateProductFormRoute(editingProductId, 2); }} className="border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-slate-50">
               &larr; Back
             </button>
-            <button onClick={() => setFormStep(4)} className="bg-[#7c3aed] text-white font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-violet-700">
+            <button onClick={() => saveProductDraft(4)} disabled={isDraftSaving} className="bg-[#7c3aed] text-white font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-violet-700 disabled:opacity-50 flex items-center gap-2">
+              {isDraftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               Next: Packaging &rarr;
             </button>
           </div>
@@ -1348,7 +1489,7 @@ export default function ProductManagement() {
           </div>
 
           <div className="flex justify-between pt-3 border-t border-slate-100">
-            <button onClick={() => setFormStep(3)} className="border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-slate-50">
+            <button onClick={() => { setFormStep(3); updateProductFormRoute(editingProductId, 3); }} className="border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-slate-50">
               &larr; Back
             </button>
             <button
