@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Product, Order, LoggedUser } from '../types';
+import { fetchAllOrders, updateOrderStatus } from '../lib/buyerDataService';
 
 interface AdminPanelProps {
   products: Product[];
@@ -149,6 +150,7 @@ export default function AdminPanel({
   useEffect(() => {
     if (activeTab === 'ads') fetchAdCampaigns();
     if (activeTab === 'homepage') fetchHomepageSections();
+    if (activeTab === 'orders') fetchAllOrders().then(setAdminOrders);
   }, [activeTab]);
 
 
@@ -175,6 +177,7 @@ export default function AdminPanel({
 
   // Accounts state management
   const [userAccounts, setUserAccounts] = useState<any[]>([]);
+  const [adminOrders, setAdminOrders] = useState<Order[]>([]);
 
   // Ads/Homepage customizations
   // (Homepage settings removed - sections managed via dedicated tab)
@@ -530,17 +533,11 @@ export default function AdminPanel({
   };
 
   // Switch Order Status dropdown
-  const handleOrderStatusChange = (orderId: string, value: 'accepted' | 'rejected' | 'packed' | 'picked_up' | 'in_transit' | 'out_for_delivery' | 'delivered') => {
-    if (onUpdateOrders) {
-      const altered = orders.map(o => o.id === orderId ? { ...o, status: value } : o);
-      onUpdateOrders(altered);
-    } else {
-      // mutate order
-      const match = orders.find(o => o.id === orderId);
-      if (match) {
-        match.status = value;
-      }
-    }
+  const handleOrderStatusChange = async (orderId: string, value: 'accepted' | 'rejected' | 'packed' | 'picked_up' | 'in_transit' | 'out_for_delivery' | 'delivered') => {
+    await updateOrderStatus(orderId, value);
+    const freshOrders = await fetchAllOrders();
+    setAdminOrders(freshOrders);
+    if (onUpdateOrders) onUpdateOrders(freshOrders);
     alert(`Order #${orderId} status modified to "${value}" successfully!`);
   };
 
@@ -1243,14 +1240,14 @@ export default function AdminPanel({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-705">
-                      {orders.length === 0 ? (
+                      {adminOrders.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="py-10 text-center text-slate-400 font-mono text-xs">
                             No real-time user checkout logs registered yet in state. Checkout some carts first, and they will populate instantly!
                           </td>
                         </tr>
                       ) : (
-                        orders.map((o) => (
+                        adminOrders.map((o) => (
                           <tr key={o.id} className="hover:bg-slate-50/20">
                             <td className="py-3 px-4 font-mono font-bold text-[#7c3aed]">#{o.id.substring(0, 8)}</td>
                             <td className="py-3 px-4">
@@ -1266,8 +1263,8 @@ export default function AdminPanel({
                                 ))}
                               </div>
                             </td>
-                            <td className="py-3 px-4 font-mono font-black text-slate-900">${o.total.toFixed(2)}</td>
-                            <td className="py-3 px-4 uppercase text-[10px] text-slate-500 font-mono font-extrabold">{o.paymentMethod || 'COD'}</td>
+                            <td className="py-3 px-4 font-mono font-black text-slate-900">₹{o.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-4 uppercase text-[10px] text-slate-500 font-mono font-extrabold">{o.paymentMethod || 'Razorpay'}</td>
                             <td className="py-3 px-4">
                               <select 
                                 value={o.status}

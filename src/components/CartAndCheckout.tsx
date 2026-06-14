@@ -14,6 +14,7 @@ import {
 import { CartItem, Order } from '../types';
 import { formatINR } from './ProductCard';
 import { supabase } from '../lib/supabaseClient';
+import { fetchSavedAddresses, saveShippingAddress } from '../lib/buyerDataService';
 
 interface CartAndCheckoutProps {
   cartItems: CartItem[];
@@ -60,7 +61,7 @@ export default function CartAndCheckout({
   const [zipCode, setZipCode] = useState('');
   const [phone, setPhone] = useState('');
   const [artisanNote, setArtisanNote] = useState('');
-  const [savedAddresses, setSavedAddresses] = useState<Array<{id: string; name: string; email: string; address: string; city: string; zipCode: string; phone: string}>>([]);
+  const [savedAddresses, setSavedAddresses] = useState<Array<{id: string; name: string; email: string; address: string; city: string; state: string; zipCode: string; phone: string}>>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [useNewAddress, setUseNewAddress] = useState(true);
 
@@ -81,6 +82,21 @@ export default function CartAndCheckout({
       return activeSelected;
     });
   }, [cartItems]);
+
+  useEffect(() => {
+    fetchSavedAddresses().then((addresses) => {
+      setSavedAddresses(addresses.map(addr => ({
+        id: addr.id,
+        name: addr.fullName,
+        email: addr.email,
+        address: addr.address,
+        city: addr.city,
+        state: addr.state,
+        zipCode: addr.zipCode,
+        phone: addr.phoneNumber
+      })));
+    });
+  }, []);
 
   const selectedItems = cartItems.filter(item => selectedIds.includes(item.id));
 
@@ -148,6 +164,20 @@ export default function CartAndCheckout({
     }
   };
 
+  const ensureShippingAddressSaved = async () => {
+    if (selectedAddressId && !useNewAddress) return selectedAddressId;
+    return saveShippingAddress({
+      fullName: customerName.trim(),
+      email: email.trim(),
+      phoneNumber: phone.trim(),
+      address: address.trim(),
+      city: city.trim(),
+      state: '',
+      zipCode: zipCode.trim(),
+      isDefault: savedAddresses.length === 0
+    });
+  };
+
   const generateOrderNumber = () => {
     return 'SV-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
   };
@@ -173,6 +203,7 @@ export default function CartAndCheckout({
       // 1. Load Razorpay script
       const loaded = await loadRazorpayScript();
       if (!loaded) throw new Error('Failed to load payment gateway. Please check your internet connection.');
+      await ensureShippingAddressSaved();
 
       // 2. Generate order number
       const orderNumber = generateOrderNumber();
@@ -267,6 +298,7 @@ export default function CartAndCheckout({
                 ]
               };
               onPlaceOrder(finalOrder);
+              await onClearCart();
 
               setTimeout(() => {
                 onNavigate(`order-status/${orderNumber}`);

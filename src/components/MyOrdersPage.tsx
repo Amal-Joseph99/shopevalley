@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Order } from '../types';
 import { ShoppingBag, ChevronRight, CalendarDays, DollarSign, Truck } from 'lucide-react';
+import { fetchOrdersForCurrentUser } from '../lib/buyerDataService';
 
 interface MyOrdersPageProps {
   orders: Order[];
@@ -8,6 +9,12 @@ interface MyOrdersPageProps {
 }
 
 export default function MyOrdersPage({ orders, onNavigate }: MyOrdersPageProps) {
+  const [dbOrders, setDbOrders] = useState<Order[]>(orders);
+
+  useEffect(() => {
+    fetchOrdersForCurrentUser().then(setDbOrders);
+  }, []);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
@@ -34,11 +41,11 @@ export default function MyOrdersPage({ orders, onNavigate }: MyOrdersPageProps) 
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-extrabold text-slate-950 mb-2">My Orders</h1>
-          <p className="text-sm text-slate-600">{orders.length} order(s)</p>
+          <p className="text-sm text-slate-600">{dbOrders.length} order(s)</p>
         </div>
 
         {/* Orders List */}
-        {orders.length === 0 ? (
+        {dbOrders.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-2xl p-12 shadow-sm text-center">
             <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <p className="text-slate-600 font-semibold mb-4">No orders yet</p>
@@ -52,7 +59,7 @@ export default function MyOrdersPage({ orders, onNavigate }: MyOrdersPageProps) 
           </div>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => (
+            {dbOrders.map((order) => (
               <div
                 key={order.id}
                 className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer"

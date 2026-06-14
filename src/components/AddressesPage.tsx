@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LoggedUser, SavedAddress } from '../types';
 import { Plus, Trash2, MapPin, Phone, Mail, Check, X } from 'lucide-react';
+import { deleteShippingAddress, fetchSavedAddresses, saveShippingAddress, setDefaultShippingAddress } from '../lib/buyerDataService';
 
 interface AddressesPageProps {
   currentUser: LoggedUser | null;
@@ -18,6 +19,16 @@ export default function AddressesPage({ currentUser, onUpdateUser }: AddressesPa
   const [addressState, setAddressState] = useState('');
   const [addressZip, setAddressZip] = useState('');
   const [addressDefault, setAddressDefault] = useState(false);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    fetchSavedAddresses().then((data) => {
+      setAddresses(data);
+      setIsLoading(false);
+    });
+  }, [currentUser?.id]);
 
   if (!currentUser) {
     return (
@@ -41,8 +52,10 @@ export default function AddressesPage({ currentUser, onUpdateUser }: AddressesPa
     setAddressDefault(false);
   };
 
-  const handleAddAddress = () => {
-    if (currentUser.addresses.length >= 5) {
+  const refreshAddresses = async () => setAddresses(await fetchSavedAddresses());
+
+  const handleAddAddress = async () => {
+    if (addresses.length >= 5) {
       alert('Maximum 5 addresses allowed. Please remove one before adding a new address.');
       return;
     }
@@ -52,9 +65,7 @@ export default function AddressesPage({ currentUser, onUpdateUser }: AddressesPa
       return;
     }
 
-    const newAddress: SavedAddress = {
-      id: Date.now().toString(),
-      label: addressLabel || 'New Address',
+    await saveShippingAddress({
       fullName: addressFullName.trim(),
       email: addressEmail.trim(),
       phoneNumber: addressPhone.trim(),
@@ -62,36 +73,22 @@ export default function AddressesPage({ currentUser, onUpdateUser }: AddressesPa
       city: addressCity.trim(),
       state: addressState.trim(),
       zipCode: addressZip.trim(),
-      isDefault: addressDefault || currentUser.addresses.length === 0,
-      createdAt: new Date().toISOString()
-    };
-
-    const updatedAddresses = newAddress.isDefault
-      ? currentUser.addresses.map((a) => ({ ...a, isDefault: false }))
-      : currentUser.addresses;
-
-    onUpdateUser({
-      ...currentUser,
-      addresses: [...updatedAddresses, newAddress]
+      isDefault: addressDefault || addresses.length === 0
     });
 
+    await refreshAddresses();
     resetForm();
     setShowAddressForm(false);
   };
 
-  const handleDeleteAddress = (id: string) => {
-    const newAddresses = currentUser.addresses.filter((addr) => addr.id !== id);
-    onUpdateUser({ ...currentUser, addresses: newAddresses });
+  const handleDeleteAddress = async (id: string) => {
+    await deleteShippingAddress(id);
+    await refreshAddresses();
   };
 
-  const handleSetDefault = (id: string) => {
-    onUpdateUser({
-      ...currentUser,
-      addresses: currentUser.addresses.map((addr) => ({
-        ...addr,
-        isDefault: addr.id === id
-      }))
-    });
+  const handleSetDefault = async (id: string) => {
+    await setDefaultShippingAddress(id);
+    await refreshAddresses();
   };
 
   return (
@@ -105,7 +102,7 @@ export default function AddressesPage({ currentUser, onUpdateUser }: AddressesPa
             </div>
             <button
               onClick={() => setShowAddressForm(!showAddressForm)}
-              disabled={currentUser.addresses.length >= 5}
+              disabled={addresses.length >= 5}
               className="inline-flex items-center gap-2 rounded-full border border-slate-900 bg-slate-950 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />
@@ -202,11 +199,13 @@ export default function AddressesPage({ currentUser, onUpdateUser }: AddressesPa
             </div>
           )}
 
-          {currentUser.addresses.length === 0 ? (
+          {isLoading ? (
+            <p className="text-sm text-slate-500">Loading saved addresses...</p>
+          ) : addresses.length === 0 ? (
             <p className="text-sm text-slate-500">No saved addresses yet. Use the button above to add your first address.</p>
           ) : (
             <div className="grid gap-4">
-              {currentUser.addresses.map((address) => (
+              {addresses.map((address) => (
                 <div
                   key={address.id}
                   className={`rounded-3xl border p-5 transition ${address.isDefault ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white'}`}
@@ -253,7 +252,7 @@ export default function AddressesPage({ currentUser, onUpdateUser }: AddressesPa
             </div>
           )}
 
-          {currentUser.addresses.length >= 5 && (
+          {addresses.length >= 5 && (
             <p className="mt-4 text-sm text-slate-500">Maximum 5 addresses saved. Delete one to add another.</p>
           )}
         </div>

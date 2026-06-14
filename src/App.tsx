@@ -20,8 +20,17 @@ import AddressesPage from './components/AddressesPage';
 import MyOrdersPage from './components/MyOrdersPage';
 import NotificationsPage from './components/NotificationsPage';
 import { supabase, getCurrentUserProfile } from './lib/supabaseClient';
-import { PRODUCTS } from './data';
 import { Product, CartItem, Order, LoggedUser, ProductVariant } from './types';
+import {
+  addCartItem,
+  clearCartItems,
+  fetchAllOrders,
+  fetchCartItems,
+  fetchOrdersForCurrentUser,
+  normalizeProductRow,
+  removeCartItem,
+  updateCartItemQuantity
+} from './lib/buyerDataService';
 import { 
   Heart, 
   ShoppingCart, 
@@ -243,38 +252,7 @@ export default function App() {
     const fetchProducts = async () => {
       const { data } = await supabase.from('products').select('*');
       if (data && data.length > 0) {
-        setProducts(data.map((p: any) => ({
-          id: p.id_key || p.id,
-          name: p.name,
-          slug: p.slug,
-          description: p.description || '',
-          price: Number(p.price) || 0,
-          originalPrice: p.original_price ? Number(p.original_price) : undefined,
-          category: p.category || '',
-          subCategory: p.sub_category || '',
-          images: Array.isArray(p.images) ? p.images : [],
-          rating: Number(p.rating) || 0,
-          reviewCount: p.review_count || 0,
-          stock: p.stock || 0,
-          tags: p.tags || [],
-          isOrganic: p.is_organic || false,
-          isHandmade: p.is_handmade || false,
-          materials: p.materials || [],
-          brand: p.brand || '',
-          sku: p.sku || '',
-          hsnCode: p.hsn_code || '',
-          manufacturerName: p.manufacturer_name || '',
-          manufacturerCountry: p.manufacturer_country || '',
-          countryOfOrigin: p.country_of_origin || '',
-          weight: p.weight || '',
-          dimensions: p.dimensions || '',
-          package: p.package || '',
-          importantNote: p.important_note || '',
-          highlights: p.highlights || '',
-          aboutProduct: p.about_product || [],
-          directions: p.directions || [],
-          variants: Array.isArray(p.variants) ? p.variants : []
-        })));
+        setProducts(data.map((p: any) => normalizeProductRow(p)));
       }
     };
     fetchProducts();
@@ -283,6 +261,17 @@ export default function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'BUYER') {
+      setCart([]);
+      setOrders([]);
+      return;
+    }
+
+    fetchCartItems().then(setCart);
+    fetchOrdersForCurrentUser().then(setOrders);
+  }, [currentUser?.id, currentUser?.role]);
 
   useEffect(() => {
     // Don't run route guards until auth state is resolved
@@ -337,79 +326,32 @@ export default function App() {
   }, [route.productSlug, products]);
 
   // Cart operations
-  const handleAddToCart = (
+  const handleAddToCart = async (
     product: Product, 
     qty: number = 1, 
     variant?: ProductVariant, 
     selectedSize?: string, 
     selectedColour?: string
   ) => {
-    setCart((prev) => {
-      const variantId = variant ? variant.id : 'STANDARD';
-      const sizeStr = selectedSize || 'Free Size';
-      const colourStr = selectedColour || 'Default';
-      const price = typeof (variant ? variant.price : product.price) === 'number' && !isNaN(variant ? variant.price : product.price)
-        ? (variant ? variant.price : product.price)
-        : 0;
-      const cartItemId = `${product.id}-${variantId}`;
-      const validQty = typeof qty === 'number' && !isNaN(qty) && qty > 0 ? qty : 1;
-      
-      const existing = prev.find(item => item.id === cartItemId);
-      if (existing) {
-        return prev.map(item => {
-          if (item.id === cartItemId) {
-            const finalQty = item.quantity + validQty;
-            return { 
-              ...item, 
-              quantity: finalQty, 
-              subtotal: Math.round(finalQty * price * 100) / 100 
-            };
-          }
-          return item;
-        });
-      }
-      const newItem: CartItem = {
-        id: cartItemId,
-        product,
-        productId: product.id,
-        variantId,
-        productName: product.name,
-        selectedSize: sizeStr,
-        selectedColour: colourStr,
-        size: sizeStr,
-        colour: colourStr,
-        quantity: validQty,
-        unitPrice: price,
-        subtotal: Math.round(validQty * price * 100) / 100
-      };
-      return [...prev, newItem];
-    });
+    const validQty = typeof qty === 'number' && !isNaN(qty) && qty > 0 ? qty : 1;
+    await addCartItem(product, validQty, variant?.id || null, selectedSize || 'Free Size', selectedColour || 'Default');
+    setCart(await fetchCartItems());
   };
 
-  const handleModifyQty = (cartItemId: string, quantity: number) => {
-    if (quantity <= 0) {
-      handleRemoveFromCart(cartItemId);
-      return;
-    }
-    setCart((prev) => prev.map(item => {
-      if (item.id === cartItemId) {
-        const qty = typeof quantity === 'number' && !isNaN(quantity) && quantity > 0 ? quantity : 1;
-        const price = typeof item.unitPrice === 'number' && !isNaN(item.unitPrice) ? item.unitPrice : 0;
-        return { 
-          ...item, 
-          quantity: qty, 
-          subtotal: Math.round(qty * price * 100) / 100 
-        };
-      }
-      return item;
-    }));
+  const handleModifyQty = async (cartItemId: string, quantity: number) => {
+    await updateCartItemQuantity(cartItemId, quantity);
+    setCart(await fetchCartItems());
   };
 
-  const handleRemoveFromCart = (cartItemId: string) => {
-    setCart((prev) => prev.filter(item => item.id !== cartItemId));
+  const handleRemoveFromCart = async (cartItemId: string) => {
+    await removeCartItem(cartItemId);
+    setCart(await fetchCartItems());
   };
 
-  const handleClearCart = () => setCart([]);
+  const handleClearCart = async () => {
+    await clearCartItems();
+    setCart([]);
+  };
 
   // Wishlist triggers
   const handleToggleWishlist = (product: Product) => {
@@ -433,8 +375,9 @@ export default function App() {
     setProducts((prev) => prev.filter(p => p.id !== prodId));
   };
 
-  const handlePlaceOrder = (newOrder: Order) => {
+  const handlePlaceOrder = async (newOrder: Order) => {
     setOrders((prev) => [newOrder, ...prev]);
+    setOrders(await fetchOrdersForCurrentUser());
   };
 
   // Filter application algorithms

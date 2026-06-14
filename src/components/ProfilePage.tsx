@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { LoggedUser, SavedAddress } from '../types';
-import { Plus, Edit2, Trash2, MapPin, Phone, Mail, Check, X } from 'lucide-react';
+import { LoggedUser } from '../types';
+import { MapPin } from 'lucide-react';
+import { updateUserProfile } from '../lib/supabaseClient';
 
 interface ProfilePageProps {
   currentUser: LoggedUser | null;
@@ -9,7 +10,6 @@ interface ProfilePageProps {
 
 export default function ProfilePage({ currentUser, onUpdateUser }: ProfilePageProps) {
   const [editingProfile, setEditingProfile] = useState(false);
-  const [showAddressForm, setShowAddressForm] = useState(false);
   
   // Profile edit state
   const [editName, setEditName] = useState(currentUser?.name || '');
@@ -24,17 +24,6 @@ export default function ProfilePage({ currentUser, onUpdateUser }: ProfilePagePr
     }
   }, [currentUser]);
 
-  // Address form state
-  const [addressLabel, setAddressLabel] = useState('');
-  const [addressFullName, setAddressFullName] = useState('');
-  const [addressEmail, setAddressEmail] = useState('');
-  const [addressPhone, setAddressPhone] = useState('');
-  const [addressStreet, setAddressStreet] = useState('');
-  const [addressCity, setAddressCity] = useState('');
-  const [addressState, setAddressState] = useState('');
-  const [addressZip, setAddressZip] = useState('');
-  const [addressDefault, setAddressDefault] = useState(false);
-
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white px-4 py-8">
@@ -45,7 +34,12 @@ export default function ProfilePage({ currentUser, onUpdateUser }: ProfilePagePr
     );
   }
 
-  const handleUpdateProfile = () => {
+  const handleUpdateProfile = async () => {
+    await updateUserProfile(currentUser.id, {
+      name: editName,
+      email: editEmail,
+      phone: editPhone
+    });
     const updated: LoggedUser = {
       ...currentUser,
       name: editName,
@@ -54,80 +48,6 @@ export default function ProfilePage({ currentUser, onUpdateUser }: ProfilePagePr
     };
     onUpdateUser(updated);
     setEditingProfile(false);
-  };
-
-  const handleAddAddress = () => {
-    if (!currentUser) return;
-
-    // Check max 5 addresses
-    if (currentUser.addresses.length >= 5) {
-      alert('Maximum 5 addresses allowed');
-      return;
-    }
-
-    if (!addressFullName.trim() || !addressPhone.trim() || !addressStreet.trim() || !addressCity.trim() || !addressState.trim() || !addressZip.trim()) {
-      alert('Please fill in all required address fields.');
-      return;
-    }
-
-    const newAddress: SavedAddress = {
-      id: Date.now().toString(),
-      label: addressLabel || 'New Address',
-      fullName: addressFullName,
-      email: addressEmail,
-      phoneNumber: addressPhone,
-      address: addressStreet,
-      city: addressCity,
-      state: addressState,
-      zipCode: addressZip,
-      isDefault: addressDefault || currentUser.addresses.length === 0,
-      createdAt: new Date().toISOString()
-    };
-
-    // If this is default, unset others
-    let updatedAddresses = currentUser.addresses;
-    if (newAddress.isDefault) {
-      updatedAddresses = updatedAddresses.map(a => ({ ...a, isDefault: false }));
-    }
-
-    const updated: LoggedUser = {
-      ...currentUser,
-      addresses: [...updatedAddresses, newAddress]
-    };
-    onUpdateUser(updated);
-
-    // Reset form
-    setAddressLabel('');
-    setAddressFullName('');
-    setAddressEmail('');
-    setAddressPhone('');
-    setAddressStreet('');
-    setAddressCity('');
-    setAddressState('');
-    setAddressZip('');
-    setAddressDefault(false);
-    setShowAddressForm(false);
-  };
-
-  const handleDeleteAddress = (id: string) => {
-    if (!currentUser) return;
-    const updated: LoggedUser = {
-      ...currentUser,
-      addresses: currentUser.addresses.filter(a => a.id !== id)
-    };
-    onUpdateUser(updated);
-  };
-
-  const handleSetDefault = (id: string) => {
-    if (!currentUser) return;
-    const updated: LoggedUser = {
-      ...currentUser,
-      addresses: currentUser.addresses.map(a => ({
-        ...a,
-        isDefault: a.id === id
-      }))
-    };
-    onUpdateUser(updated);
   };
 
   return (
@@ -206,171 +126,14 @@ export default function ProfilePage({ currentUser, onUpdateUser }: ProfilePagePr
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
             <h2 className="text-lg font-extrabold text-slate-950">Saved Addresses</h2>
-            <button
-              onClick={() => setShowAddressForm(!showAddressForm)}
-              disabled={currentUser.addresses.length >= 5}
-              className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add New
-            </button>
           </div>
-
-          {/* Add Address Form */}
-          {showAddressForm && (
-            <div className="mb-6 p-4 border-2 border-dashed border-slate-200 rounded-xl">
-              <h3 className="font-bold text-sm text-slate-900 mb-4">Add New Address</h3>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Label (e.g., Home, Work)"
-                  value={addressLabel}
-                  onChange={(e) => setAddressLabel(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={addressFullName}
-                  onChange={(e) => setAddressFullName(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={addressEmail}
-                  onChange={(e) => setAddressEmail(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                />
-                <input
-                  type="tel"
-                  placeholder="Phone Number"
-                  value={addressPhone}
-                  onChange={(e) => setAddressPhone(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Street Address"
-                  value={addressStreet}
-                  onChange={(e) => setAddressStreet(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                />
-                <div className="grid grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    placeholder="City"
-                    value={addressCity}
-                    onChange={(e) => setAddressCity(e.target.value)}
-                    className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="State"
-                    value={addressState}
-                    onChange={(e) => setAddressState(e.target.value)}
-                    className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="ZIP"
-                    value={addressZip}
-                    onChange={(e) => setAddressZip(e.target.value)}
-                    className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                  />
-                </div>
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={addressDefault}
-                    onChange={(e) => setAddressDefault(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-slate-900"
-                  />
-                  <span className="font-semibold text-slate-700">Set as default address</span>
-                </label>
-                <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={handleAddAddress}
-                    className="flex-1 py-2 bg-slate-900 text-white font-bold text-xs rounded-lg hover:bg-slate-800 transition-colors"
-                  >
-                    Save Address
-                  </button>
-                  <button
-                    onClick={() => setShowAddressForm(false)}
-                    className="flex-1 py-2 border border-slate-200 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+          <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <MapPin className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-slate-900">Manage addresses from the Addresses page.</p>
+              <p className="text-xs text-slate-500 mt-1">Saved addresses are stored in Supabase `shipping_addresses`.</p>
             </div>
-          )}
-
-          {/* Address List */}
-          {currentUser.addresses.length === 0 ? (
-            <p className="text-xs text-slate-500 italic">No addresses saved yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {currentUser.addresses.map((addr) => (
-                <div
-                  key={addr.id}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    addr.isDefault ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-bold text-sm text-slate-900">{addr.label}</h3>
-                        {addr.isDefault && (
-                          <span className="px-2 py-0.5 bg-slate-900 text-white text-[10px] font-bold rounded-full">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-700 font-semibold mb-2">{addr.fullName}</p>
-                      <div className="space-y-1 text-[11px] text-slate-600">
-                        <p className="flex items-center gap-2">
-                          <MapPin className="w-3 h-3" />
-                          {addr.address}, {addr.city}, {addr.state} {addr.zipCode}
-                        </p>
-                        <p className="flex items-center gap-2">
-                          <Mail className="w-3 h-3" />
-                          {addr.email}
-                        </p>
-                        <p className="flex items-center gap-2">
-                          <Phone className="w-3 h-3" />
-                          {addr.phoneNumber}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 ml-3">
-                      {!addr.isDefault && (
-                        <button
-                          onClick={() => handleSetDefault(addr.id)}
-                          className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-900 transition-colors"
-                          title="Set as default"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteAddress(addr.id)}
-                        className="p-2 hover:bg-rose-100 rounded-lg text-slate-600 hover:text-rose-600 transition-colors"
-                        title="Delete address"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {currentUser.addresses.length >= 5 && (
-            <p className="mt-3 text-xs text-slate-500 italic">Maximum 5 addresses reached.</p>
-          )}
+          </div>
         </div>
 
       </div>

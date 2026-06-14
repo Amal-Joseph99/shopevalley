@@ -15,40 +15,7 @@ interface NotificationsPageProps {
 }
 
 export default function NotificationsPage({ onNavigate }: NotificationsPageProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'order',
-      title: 'Order Delivered',
-      message: 'Your order SV-9812A has been delivered successfully.',
-      read: false,
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString() // 30 mins ago
-    },
-    {
-      id: '2',
-      type: 'promo',
-      title: '50% Off - Limited Time!',
-      message: 'Get 50% discount on selected home decor items. Valid for next 24 hours.',
-      read: false,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() // 2 hours ago
-    },
-    {
-      id: '3',
-      type: 'alert',
-      title: 'Item Back in Stock',
-      message: 'The Speckled Stoneware Coffee Mug is back in stock at your saved price.',
-      read: true,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() // 1 day ago
-    },
-    {
-      id: '4',
-      type: 'info',
-      title: 'Payment Method Confirmation',
-      message: 'Your payment method has been updated successfully.',
-      read: true,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() // 2 days ago
-    }
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {

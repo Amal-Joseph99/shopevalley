@@ -93,6 +93,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  dbId?: string;
   items: OrderItem[];
   subtotal: number;
   shipping: number;
