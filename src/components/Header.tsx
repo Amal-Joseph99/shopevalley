@@ -55,24 +55,17 @@ export default function Header({
   currentUser,
   onLogout
 }: HeaderProps) {
-  const [showLocationPopover, setShowLocationPopover] = useState(false);
   const [showAccountPopover, setShowAccountPopover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
-  const [showInlineLocationEdit, setShowInlineLocationEdit] = useState(false);
 
   // Address Geolocation States
   const [userLocation, setUserLocation] = useState({
-    city: 'Bangalore',
-    state: 'Karnataka',
-    country: 'India'
+    city: '',
+    state: '',
+    country: ''
   });
   const [isDetecting, setIsDetecting] = useState(false);
-  
-  // Quick Manual edits
-  const [editCity, setEditCity] = useState('Bangalore');
-  const [editState, setEditState] = useState('Karnataka');
-  const [editCountry, setEditCountry] = useState('India');
 
   // Categories list - fetched from Supabase
   const [categoriesList, setCategoriesList] = useState<string[]>(['All']);
@@ -97,115 +90,63 @@ export default function Header({
     try {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          async () => {
+          async (position) => {
             try {
-              const res = await fetch('https://ipapi.co/json/');
+              const { latitude, longitude } = position.coords;
+              const res = await fetch(
+                `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+              );
               if (res.ok) {
                 const data = await res.json();
-                if (data.city) {
-                  const updated = {
-                    city: data.city || 'Bangalore',
-                    state: data.region || 'Karnataka',
-                    country: data.country_name || 'India'
-                  };
-                  setUserLocation(updated);
-                  setEditCity(updated.city);
-                  setEditState(updated.state);
-                  setEditCountry(updated.country);
-                }
+                setUserLocation({
+                  city: data.city || data.locality || 'Unknown',
+                  state: data.principalSubdivision || '',
+                  country: data.countryName || 'India'
+                });
               }
-            } catch (err) {
-              console.warn(err);
+            } catch {
+              await fallbackIpLocation();
             } finally {
               setIsDetecting(false);
             }
           },
           async () => {
-            try {
-              const res = await fetch('https://ipapi.co/json/');
-              if (res.ok) {
-                const data = await res.json();
-                if (data.city) {
-                  const updated = {
-                    city: data.city,
-                    state: data.region,
-                    country: data.country_name
-                  };
-                  setUserLocation(updated);
-                  setEditCity(updated.city);
-                  setEditState(updated.state);
-                  setEditCountry(updated.country);
-                }
-              }
-            } catch (err) {
-              console.warn(err);
-            } finally {
-              setIsDetecting(false);
-            }
+            await fallbackIpLocation();
+            setIsDetecting(false);
           },
-          { timeout: 5000 }
+          { timeout: 8000, enableHighAccuracy: false }
         );
       } else {
-        const res = await fetch('https://ipapi.co/json/');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.city) {
-            const updated = {
-              city: data.city,
-              state: data.region,
-              country: data.country_name
-            };
-            setUserLocation(updated);
-            setEditCity(updated.city);
-            setEditState(updated.state);
-            setEditCountry(updated.country);
-          }
-        }
+        await fallbackIpLocation();
         setIsDetecting(false);
       }
-    } catch (e) {
-      console.warn("Location error:", e);
+    } catch {
       setIsDetecting(false);
     }
   };
 
-  // Passive detection on initial mount
-  useEffect(() => {
-    const passiveLoading = async () => {
-      try {
-        const res = await fetch('https://ipapi.co/json/');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.city && data.region && data.country_name) {
-            const updated = {
-              city: data.city,
-              state: data.region,
-              country: data.country_name
-            };
-            setUserLocation(updated);
-            setEditCity(updated.city);
-            setEditState(updated.state);
-            setEditCountry(updated.country);
-          }
+  const fallbackIpLocation = async () => {
+    try {
+      const res = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.city || data.locality) {
+          setUserLocation({
+            city: data.city || data.locality || '',
+            state: data.principalSubdivision || '',
+            country: data.countryName || 'India'
+          });
         }
-      } catch {
-        // Keep initial defaults safely
       }
-    };
-    passiveLoading();
-  }, []);
-
-  const handleApplyManualLocation = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editCity.trim() && editCountry.trim()) {
-      setUserLocation({
-        city: editCity.trim(),
-        state: editState.trim(),
-        country: editCountry.trim()
-      });
-      setShowLocationPopover(false);
+    } catch {
+      // Keep defaults
     }
   };
+
+  // Auto-detect location on mount (asks browser permission)
+  useEffect(() => {
+    handleAutoDetectLocation();
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,13 +161,6 @@ export default function Header({
     setSearchQuery('');
     setSelectedCategoryFilter('All');
     onNavigate('');
-  };
-
-  const selectPresetCity = (city: string, state: string, country: string) => {
-    setUserLocation({ city, state, country });
-    setEditCity(city);
-    setEditState(state);
-    setEditCountry(country);
   };
 
   const notifyUser = (message: string) => {
@@ -262,146 +196,31 @@ export default function Header({
             </button>
           </div>
 
-          {/* 2. LOCATION SELECTOR - OUTSIDE search bar, immediately after the logo */}
+          {/* 2. LOCATION DISPLAY - Auto-detected, click to refresh */}
           <div className="relative shrink-0 flex items-center" id="sh_desktop_location_block">
             <button 
-              onClick={() => setShowLocationPopover(!showLocationPopover)}
+              onClick={handleAutoDetectLocation}
+              disabled={isDetecting}
               className="group flex flex-row items-center gap-3 px-3 py-1 hover:ring-1 hover:ring-[#4CAF50]/65 hover:bg-white/[0.03] rounded-lg transition-all cursor-pointer text-left active:scale-98 max-w-[220px] h-12 select-none"
               id="sh_location_btn_desktop"
+              title="Click to refresh location"
             >
-              <MapPin className="w-5 h-5 text-amber-500 shrink-0" />
+              {isDetecting ? (
+                <Loader2 className="w-5 h-5 text-amber-500 shrink-0 animate-spin" />
+              ) : (
+                <MapPin className="w-5 h-5 text-amber-500 shrink-0" />
+              )}
               <div className="flex flex-col min-w-0 flex-1 leading-none justify-center">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Current Location</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Deliver to</span>
                 <span className="text-[12px] font-black text-white flex items-center gap-1 min-w-0">
-                  <span className="truncate">{userLocation.city}, {userLocation.state}, {userLocation.country}</span>
-                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0 group-hover:text-amber-500 transition-colors" />
+                  <span className="truncate">
+                    {userLocation.city 
+                      ? `${userLocation.city}, ${userLocation.state || userLocation.country}` 
+                      : isDetecting ? 'Detecting...' : 'Set location'}
+                  </span>
                 </span>
               </div>
             </button>
-
-            {/* LOCATION POPOVER DIALOG */}
-            {showLocationPopover && (
-              <div className="absolute left-0 mt-2.5 w-80 bg-white border border-slate-200 rounded-xl p-5 shadow-2xl z-50 text-slate-800 animate-in fade-in slide-in-from-top-3" id="sh_desktop_location_popover">
-                <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-slate-100">
-                  <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wide">Shipment Location Setting</h3>
-                  <button 
-                    onClick={() => setShowLocationPopover(false)} 
-                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-700"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <p className="text-[11px] text-slate-500 mb-4">
-                  Define your shipping location to accurately filter independent workshops and estimated deliveries coordinates.
-                </p>
-
-                {/* Auto detection state trigger */}
-                <button 
-                  onClick={handleAutoDetectLocation}
-                  disabled={isDetecting}
-                  className="w-full mb-4 inline-flex items-center justify-center gap-2 bg-[#2E7D32]/10 hover:bg-[#2E7D32]/20 text-[#2E7D32] font-extrabold text-xs py-2 px-3 rounded-lg transition-colors cursor-pointer border border-[#2E7D32]/10"
-                >
-                  {isDetecting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Detecting current location...</span>
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span>Auto-Detect My Location</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Quick preset city selector */}
-                <div className="mb-4">
-                  <span className="text-[9px] uppercase font-mono text-slate-400 block mb-1.5 font-bold">Quick Presets</span>
-                  <div className="grid grid-cols-2 gap-1.5 text-left text-[10px]">
-                    <button 
-                      onClick={() => selectPresetCity('Bangalore', 'Karnataka', 'India')}
-                      className="p-1.5 border border-slate-100 hover:border-[#2E7D32]/30 rounded-md hover:bg-[#2E7D32]/5 truncate font-semibold"
-                    >
-                      Bangalore, India
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => selectPresetCity('Delhi', 'Delhi NCR', 'India')}
-                      className="p-1.5 border border-slate-100 hover:border-[#2E7D32]/30 rounded-md hover:bg-[#2E7D32]/5 truncate font-semibold"
-                    >
-                      Delhi, India
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => selectPresetCity('Denver', 'Colorado', 'United States')}
-                      className="p-1.5 border border-slate-100 hover:border-[#2E7D32]/30 rounded-md hover:bg-[#2E7D32]/5 truncate font-semibold"
-                    >
-                      Denver, USA
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => selectPresetCity('San Francisco', 'California', 'United States')}
-                      className="p-1.5 border border-slate-100 hover:border-[#2E7D32]/30 rounded-md hover:bg-[#2E7D32]/5 truncate font-semibold"
-                    >
-                      San Francisco, USA
-                    </button>
-                  </div>
-                </div>
-
-                {/* Manual Address Input fields */}
-                <form onSubmit={handleApplyManualLocation} className="space-y-3.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="block text-[9px] uppercase font-mono text-slate-400 font-bold mb-0.5">City</span>
-                      <input 
-                        type="text" 
-                        value={editCity} 
-                        onChange={(e) => setEditCity(e.target.value)}
-                        className="w-full border border-slate-200 rounded-md p-1.5 text-xs focus:ring-1 focus:ring-[#2E7D32] focus:outline-none bg-slate-50/50"
-                        placeholder="e.g. Bangalore"
-                      />
-                    </div>
-                    <div>
-                      <span className="block text-[9px] uppercase font-mono text-slate-400 font-bold mb-0.5">State</span>
-                      <input 
-                        type="text" 
-                        value={editState} 
-                        onChange={(e) => setEditState(e.target.value)}
-                        className="w-full border border-slate-200 rounded-md p-1.5 text-xs focus:ring-1 focus:ring-[#2E7D32] focus:outline-none bg-slate-50/50"
-                        placeholder="e.g. Karnataka"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] uppercase font-mono text-slate-400 font-bold mb-0.5">Country</span>
-                    <input 
-                      type="text" 
-                      value={editCountry} 
-                      onChange={(e) => setEditCountry(e.target.value)}
-                      className="w-full border border-slate-200 rounded-md p-1.5 text-xs focus:ring-1 focus:ring-[#2E7D32] focus:outline-none bg-slate-50/50"
-                      placeholder="e.g. India"
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button 
-                      type="button" 
-                      onClick={() => setShowLocationPopover(false)}
-                      className="text-[10px] bg-slate-105 hover:bg-slate-201 font-bold px-3 py-1.5 rounded-lg text-slate-700 bg-slate-100"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit"
-                      className="text-[10px] bg-[#2E7D32] hover:bg-[#1b5e20] text-white font-extrabold px-3.5 py-1.5 rounded-lg"
-                    >
-                      Apply Location
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
           </div>
 
           {/* 3. SEARCH BAR - Centered, Large responsive width, modern marketplace design */}
@@ -683,8 +502,6 @@ export default function Header({
             <button 
               onClick={() => {
                 setShowAccountPopover(true);
-                setShowLocationPopover(false);
-                // Trigger popover directly or push to custom router page
                 onNavigate('login');
               }}
               className="p-1.5 text-white hover:bg-slate-800 rounded-lg flex items-center justify-center"
@@ -901,100 +718,37 @@ export default function Header({
             {/* Scrollable Categories of full-height panel */}
             <div className="flex-1 overflow-y-auto px-1.5 py-4 divide-y divide-slate-100 bg-white">
               
-              {/* 1. LOCATION SETTINGS SECTION (Mobile Drawer Only) */}
+              {/* 1. LOCATION DISPLAY (Mobile Drawer) */}
               <div className="pb-4 px-1.5 pt-2">
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono tracking-wider font-extrabold text-slate-400 uppercase">
-                      Current Location
+                      Deliver to
                     </span>
                     <MapPin className="w-4 h-4 text-amber-500" />
                   </div>
 
-                  {!showInlineLocationEdit ? (
-                    <div className="space-y-2">
-                      <div className="flex flex-col leading-snug">
-                        <span className="text-sm font-black text-slate-900 truncate">
-                          {userLocation.city}, {userLocation.state}
-                        </span>
-                        <span className="text-xs text-slate-500 font-bold mt-0.5">
-                          {userLocation.country}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setShowInlineLocationEdit(true)}
-                        className="w-full bg-[#2E7D32] hover:bg-[#1b5e20] text-white text-xs font-bold py-2 rounded-lg cursor-pointer transition-all active:scale-95"
-                      >
-                        Change Location
-                      </button>
+                  <div className="space-y-2">
+                    <div className="flex flex-col leading-snug">
+                      <span className="text-sm font-black text-slate-900 truncate">
+                        {userLocation.city ? `${userLocation.city}, ${userLocation.state}` : 'Detecting...'}
+                      </span>
+                      <span className="text-xs text-slate-500 font-bold mt-0.5">
+                        {userLocation.country || ''}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="space-y-2 animate-in fade-in duration-200">
-                      <div className="flex items-center justify-between pb-1">
-                        <span className="text-[11px] font-bold text-slate-600">Manual Location</span>
-                        <button 
-                          onClick={() => setShowInlineLocationEdit(false)}
-                          className="text-[10px] font-extrabold text-rose-500 hover:underline"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-
-                      <button 
-                        onClick={() => {
-                          handleAutoDetectLocation();
-                          setShowInlineLocationEdit(false);
-                        }}
-                        className="w-full inline-flex items-center justify-center gap-1.5 bg-[#2E7D32]/10 text-[#2E7D32] text-xs font-extrabold py-2 rounded-lg"
-                      >
-                        {isDetecting ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Locating...</span>
-                          </>
-                        ) : (
-                          <>
-                            <MapPin className="w-3 h-3" />
-                            <span>Auto-Detect Location</span>
-                          </>
-                        )}
-                      </button>
-
-                      <div className="space-y-1.5">
-                        <input 
-                          type="text" 
-                          value={editCity}
-                          onChange={(e) => setEditCity(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-850 outline-none"
-                          placeholder="City Name"
-                        />
-                        <input 
-                          type="text" 
-                          value={editState}
-                          onChange={(e) => setEditState(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-850 outline-none"
-                          placeholder="State Name"
-                        />
-                        <input 
-                          type="text" 
-                          value={editCountry}
-                          onChange={(e) => setEditCountry(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-850 outline-none"
-                          placeholder="Country Name"
-                        />
-                      </div>
-
-                      <button
-                        onClick={(e) => {
-                          handleApplyManualLocation(e);
-                          setShowInlineLocationEdit(false);
-                        }}
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black py-2 rounded-lg transition-transform active:scale-98"
-                      >
-                        Apply Shipping Address
-                      </button>
-                    </div>
-                  )}
+                    <button
+                      onClick={handleAutoDetectLocation}
+                      disabled={isDetecting}
+                      className="w-full bg-[#2E7D32] hover:bg-[#1b5e20] text-white text-xs font-bold py-2 rounded-lg cursor-pointer transition-all active:scale-95 inline-flex items-center justify-center gap-1.5"
+                    >
+                      {isDetecting ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /><span>Detecting...</span></>
+                      ) : (
+                        <><MapPin className="w-3 h-3" /><span>Refresh Location</span></>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1049,7 +803,8 @@ export default function Header({
 
                 <button
                   onClick={() => {
-                    setShowInlineLocationEdit(true);
+                    onNavigate('addresses');
+                    setMobileMenuOpen(false);
                   }}
                   className="w-full h-11 px-3.5 hover:bg-slate-100 font-extrabold text-[#0F1111] text-xs flex items-center gap-3 transition-colors cursor-pointer rounded-lg text-left"
                 >
@@ -1069,8 +824,8 @@ export default function Header({
 
                 <button
                   onClick={() => {
-                    notifyUser("Opening Location Settings editor panel.");
-                    setShowInlineLocationEdit(true);
+                    handleAutoDetectLocation();
+                    setMobileMenuOpen(false);
                   }}
                   className="w-full h-11 px-3.5 hover:bg-slate-100 font-extrabold text-[#0F1111] text-xs flex items-center gap-3 transition-colors cursor-pointer rounded-lg text-left"
                 >
