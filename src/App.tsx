@@ -9,6 +9,7 @@ import ProductCard from './components/ProductCard';
 import CartAndCheckout from './components/CartAndCheckout';
 import OrderTracker from './components/OrderTracker';
 import OrderStatusPage from './components/OrderStatusPage';
+import ActiveAds from './components/ActiveAds';
 
 import LoginScreen from './components/LoginScreen';
 import AdminPanel from './components/AdminPanel';
@@ -600,6 +601,9 @@ export default function App() {
         {/* VIEW 3: MAIN LANDING PAGES (Default homepage layout) */}
         {route.path === '/' && !route.categoryName ? (
           <div className="space-y-4" id="sh_homepage_workspace">
+
+            {/* Homepage Banner Ads Carousel */}
+            <ActiveAds onNavigate={handleProtectedNavigate} />
 
             {/* Sec 3: Personalized product recommendations */}
             <div id="sh_personalized_recs_section_mount" className="my-1">
