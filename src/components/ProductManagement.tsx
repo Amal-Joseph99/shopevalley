@@ -455,11 +455,18 @@ export default function ProductManagement() {
     const categoryName = categoryOptions.find(c => c.id === selectedCategoryId)?.name || '';
     const subCategoryName = filteredSubCategories.find(s => s.id === selectedSubCategoryId)?.name || '';
     const productTypeName = filteredProductTypes.find(p => p.id === selectedProductTypeId)?.name || '';
+    const validVariants = variants.filter(v => v.price > 0 || v.stock > 0);
+    const pricedVariants = validVariants.filter(v => v.price > 0);
+    const baseVariant = pricedVariants[0] || validVariants[0];
 
     const productPayload = {
+      id_key: productSku,
       sku: productSku,
       name: productName.trim(),
       slug: productName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
+      price: baseVariant?.price || 0,
+      original_price: baseVariant?.mrp || null,
+      stock: validVariants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0),
       brand: brand.trim(),
       category_id: selectedCategoryId,
       category: categoryName,
@@ -503,7 +510,7 @@ export default function ProductManagement() {
       // Delete existing variants and re-insert
       await supabase.from('product_variants').delete().eq('product_id', productId!);
 
-      const variantRows = variants.filter(v => v.price > 0 || v.stock > 0).map(v => ({
+      const variantRows = validVariants.map(v => ({
         product_id: productId!,
         variant_id: v.variant_id,
         sku: v.sku,
