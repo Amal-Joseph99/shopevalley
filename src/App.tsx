@@ -8,6 +8,7 @@ import Recommendations from './components/Recommendations';
 import ProductCard from './components/ProductCard';
 import CartAndCheckout from './components/CartAndCheckout';
 import OrderTracker from './components/OrderTracker';
+import OrderStatusPage from './components/OrderStatusPage';
 
 import LoginScreen from './components/LoginScreen';
 import AdminPanel from './components/AdminPanel';
@@ -746,8 +747,12 @@ export default function App() {
           />
         ) : null}
 
-        {/* VIEW 5: REAL-TIME COURIER DELIVERY MAP AND TIMELINE */}
-        {(route.path === 'track-order' || route.path === 'order-status') ? (
+        {/* VIEW 5: ORDER STATUS & TRACKING */}
+        {route.path === 'order-status' ? (
+          <OrderStatusPage orderIdOrNumber={route.orderId || ''} onNavigate={handleProtectedNavigate} />
+        ) : null}
+
+        {route.path === 'track-order' ? (
           <OrderTracker orders={orders} initialOrderId={route.orderId} />
         ) : null}
 

@@ -7,10 +7,13 @@ import {
   CheckCircle2, 
   ShoppingBag, 
   ArrowLeft,
-  Calendar
+  Calendar,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { CartItem, Order } from '../types';
 import { formatINR } from './ProductCard';
+import { supabase } from '../lib/supabaseClient';
 
 interface CartAndCheckoutProps {
   cartItems: CartItem[];
@@ -61,13 +64,9 @@ export default function CartAndCheckout({
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [useNewAddress, setUseNewAddress] = useState(true);
 
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  const [cardHolder, setCardHolder] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing'>('idle');
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const [paymentStatusMessage, setPaymentStatusMessage] = useState('');
+  const [paymentError, setPaymentError] = useState('');
 
   const [selectedIds, setSelectedIds] = useState<string[]>(() => cartItems.map(i => i.id));
 
@@ -149,68 +148,220 @@ export default function CartAndCheckout({
     }
   };
 
-  const simulatePayment = () => {
-    if (paymentMethod === 'card' && (!cardNumber || !cardExpiry || !cardCvv || !cardHolder)) {
-      alert('Please fill in card credentials to authorize.');
+  const generateOrderNumber = () => {
+    return 'SV-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
+  };
+
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) { resolve(true); return; }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleRazorpayPayment = async () => {
+    setPaymentStatus('processing');
+    setPaymentStatusMessage('Initializing secure payment...');
+    setPaymentError('');
+
+    try {
+      // 1. Load Razorpay script
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error('Failed to load payment gateway. Please check your internet connection.');
+
+      // 2. Generate order number
+      const orderNumber = generateOrderNumber();
+      const amountInPaise = Math.round(total * 100);
+
+      // 3. Create Razorpay order via backend
+      setPaymentStatusMessage('Creating secure order...');
+      const orderRes = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amountInPaise,
+          currency: 'INR',
+          receipt: orderNumber,
+          description: `Order ${orderNumber} - ${selectedItems.length} items`,
+          email
+        })
+      });
+
+      if (!orderRes.ok) {
+        const errData = await orderRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create payment order. Please try again.');
+      }
+
+      const orderData = await orderRes.json();
+      if (!orderData.success) throw new Error(orderData.error || 'Order creation failed');
+
+      // 4. Open Razorpay checkout modal
+      setPaymentStatusMessage('Opening payment gateway...');
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        order_id: orderData.order_id,
+        amount: amountInPaise,
+        currency: 'INR',
+        name: 'ShopeValley',
+        description: `Order ${orderNumber}`,
+        prefill: { email, contact: phone, name: customerName },
+        theme: { color: '#7c3aed' },
+        handler: async (response: any) => {
+          // 5. Verify payment on backend
+          setPaymentStatusMessage('Verifying payment...');
+          try {
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.success) {
+              // 6. Save order to Supabase
+              await saveOrderToDatabase(orderNumber, response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature, 'paid');
+              setPaymentStatus('success');
+              setPaymentStatusMessage('Payment successful! Order confirmed.');
+
+              const finalOrder: Order = {
+                id: orderNumber,
+                items: selectedItems.map(item => ({
+                  productId: item.productId,
+                  name: item.product.name,
+                  price: item.unitPrice,
+                  quantity: item.quantity
+                })),
+                subtotal: Math.round(subtotal * 100) / 100,
+                shipping: 0,
+                tax: 0,
+                total,
+                customerName,
+                email,
+                address,
+                city,
+                zipCode,
+                phone,
+                status: 'accepted',
+                paymentMethod: 'Razorpay',
+                createdAt: new Date().toISOString(),
+                estimatedDelivery: '7-9 business days',
+                trackingSteps: [
+                  { status: 'Order Accepted', description: 'Your order has been accepted and confirmed.', time: 'Just now', done: true },
+                  { status: 'Order Packed', description: 'Your items are being packed for shipment.', time: 'Processing', done: false },
+                  { status: 'Picked Up', description: 'Package picked up by courier.', time: 'Pending', done: false },
+                  { status: 'In Transit', description: 'Your package is on its way.', time: 'Pending', done: false },
+                  { status: 'Out for Delivery', description: 'Package is out for delivery to your address.', time: 'Pending', done: false },
+                  { status: 'Delivered', description: 'Package delivered successfully.', time: 'Pending', done: false }
+                ]
+              };
+              onPlaceOrder(finalOrder);
+
+              setTimeout(() => {
+                onNavigate(`order-status/${orderNumber}`);
+              }, 1500);
+            } else {
+              await saveOrderToDatabase(orderNumber, response.razorpay_order_id, response.razorpay_payment_id, '', 'failed');
+              setPaymentStatus('failed');
+              setPaymentError('Payment verification failed. Your money will be refunded if debited.');
+              onNavigate(`order-status/${orderNumber}?status=failed`);
+            }
+          } catch (verifyErr: any) {
+            setPaymentStatus('failed');
+            setPaymentError(verifyErr.message || 'Payment verification error');
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentStatus('idle');
+            setPaymentStatusMessage('');
+          }
+        },
+        retry: { enabled: true, max_count: 3 }
+      };
+
+      setPaymentStatus('idle');
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', async (failedResponse: any) => {
+        const reason = failedResponse.error?.description || 'Payment failed';
+        await saveOrderToDatabase(orderNumber, orderData.order_id, '', '', 'failed');
+        setPaymentStatus('failed');
+        setPaymentError(reason);
+        onNavigate(`order-status/${orderNumber}?status=failed&reason=${encodeURIComponent(reason)}`);
+      });
+      rzp.open();
+    } catch (err: any) {
+      setPaymentStatus('failed');
+      setPaymentError(err.message || 'Payment initialization failed');
+    }
+  };
+
+  const saveOrderToDatabase = async (
+    orderNumber: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string,
+    paymentStat: 'paid' | 'failed' | 'pending'
+  ) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        order_number: orderNumber,
+        user_id: user.id,
+        shipping_name: customerName,
+        shipping_email: email,
+        shipping_phone: phone,
+        shipping_address: address,
+        shipping_city: city,
+        shipping_zip: zipCode,
+        shipping_country: 'India',
+        subtotal: Math.round(subtotal * 100) / 100,
+        shipping_fee: 0,
+        tax: 0,
+        total,
+        payment_method: 'Razorpay',
+        payment_status: paymentStat,
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_signature: razorpaySignature,
+        status: paymentStat === 'paid' ? 'accepted' : 'pending',
+        estimated_delivery: '7-9 business days',
+        customer_note: artisanNote || null
+      })
+      .select('id')
+      .single();
+
+    if (orderError || !orderData) {
+      console.error('Order save error:', orderError);
       return;
     }
 
-    setPaymentStatus('processing');
-    const messages = [
-      'Securing encrypted payment transfer...',
-      'Validating selected items and shipping details...',
-      'Processing escrow authorization with ShopeValley vault...',
-      'Finalizing gateway confirmation and settlement...',
-      'Order is being registered...'
-    ];
+    const orderItems = selectedItems.map(item => ({
+      order_id: orderData.id,
+      product_id: item.productId,
+      product_name: item.product.name,
+      product_image: item.product.images?.[0] || '',
+      size: item.selectedSize || item.size || 'Free Size',
+      colour: item.selectedColour || item.colour || '',
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      total_price: item.unitPrice * item.quantity
+    }));
 
-    let currentMsgIdx = 0;
-    setPaymentStatusMessage(messages[0]);
-
-    const interval = setInterval(() => {
-      currentMsgIdx++;
-      if (currentMsgIdx < messages.length) {
-        setPaymentStatusMessage(messages[currentMsgIdx]);
-      } else {
-        clearInterval(interval);
-        const orderId = `SV-${Math.floor(1000 + Math.random() * 9000)}`;
-        const finalOrder: Order = {
-          id: orderId,
-          items: selectedItems.map(item => ({
-            productId: item.productId,
-            name: item.product.name,
-            price: item.unitPrice,
-            quantity: item.quantity
-          })),
-          subtotal: Math.round(subtotal * 100) / 100,
-          shipping: 0,
-          tax,
-          total,
-          customerName,
-          email,
-          address,
-          city,
-          zipCode,
-          phone,
-          status: 'accepted',
-          paymentMethod: paymentMethod === 'card' ? 'Card Payment' : 'ShopeValley Wallet',
-          createdAt: new Date().toISOString(),
-          estimatedDelivery: '7-9 business days',
-          trackingSteps: [
-            { status: 'Order Accepted', description: 'Your order has been accepted and confirmed.', time: 'Just now', done: true },
-            { status: 'Order Packed', description: 'Your items are being packed for shipment.', time: 'Processing', done: false },
-            { status: 'Picked Up', description: 'Package picked up by courier.', time: 'Pending', done: false },
-            { status: 'In Transit', description: 'Your package is on its way.', time: 'Pending', done: false },
-            { status: 'Out for Delivery', description: 'Package is out for delivery to your address.', time: 'Pending', done: false },
-            { status: 'Delivered', description: 'Package delivered successfully.', time: 'Pending', done: false }
-          ]
-        };
-
-        onPlaceOrder(finalOrder);
-        setPaymentStatus('idle');
-        onNavigate(`order-status/${orderId}`);
-      }
-    }, 1200);
+    await supabase.from('order_items').insert(orderItems);
   };
 
   return (
@@ -491,86 +642,64 @@ export default function CartAndCheckout({
           {step === 'payment' && (
             <div className="space-y-6" id="ch_step_payment">
               {paymentStatus === 'processing' ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-lg animate-pulse">
-                  <div className="inline-flex items-center justify-center text-amber-500 mb-6 relative">
-                    <CreditCard className="w-12 h-12 text-slate-950" />
-                  </div>
-                  <h3 className="font-extrabold text-slate-950 text-lg uppercase">Processing Secure Payment</h3>
+                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-lg">
+                  <Loader2 className="w-12 h-12 text-violet-600 animate-spin mx-auto mb-4" />
+                  <h3 className="font-extrabold text-slate-950 text-lg uppercase">Processing Payment</h3>
                   <div className="max-w-sm mx-auto mt-3">
-                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 font-mono text-[11px] text-amber-900 leading-normal text-left">{paymentStatusMessage}</div>
+                    <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 font-mono text-[11px] text-violet-900 leading-normal text-center">{paymentStatusMessage}</div>
                   </div>
                   <p className="text-[10px] text-slate-400 font-mono mt-8">Do not reload this page while we finish the payment.</p>
                 </div>
+              ) : paymentStatus === 'success' ? (
+                <div className="bg-white border border-emerald-200 rounded-2xl p-12 text-center shadow-lg">
+                  <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto mb-4" />
+                  <h3 className="font-extrabold text-slate-950 text-lg">Payment Successful!</h3>
+                  <p className="text-sm text-slate-600 mt-2">Your order has been placed. Redirecting to order status...</p>
+                </div>
+              ) : paymentStatus === 'failed' ? (
+                <div className="bg-white border border-red-200 rounded-2xl p-12 text-center shadow-lg">
+                  <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
+                  <h3 className="font-extrabold text-slate-950 text-lg">Payment Failed</h3>
+                  <p className="text-sm text-red-600 mt-2">{paymentError}</p>
+                  <button
+                    onClick={() => { setPaymentStatus('idle'); setPaymentError(''); }}
+                    className="mt-6 bg-slate-900 text-white font-bold text-xs py-2.5 px-6 rounded-xl cursor-pointer hover:bg-slate-800"
+                  >
+                    Try Again
+                  </button>
+                </div>
               ) : (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-left">
-                  <h3 className="font-extrabold text-slate-950 text-md tracking-tight border-b border-slate-100 pb-3 mb-5">Payment Gateway</h3>
-                  <div className="space-y-4">
-                    <div className="flex gap-4 mb-6">
-                      <button onClick={() => setPaymentMethod('card')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${paymentMethod === 'card' ? 'bg-slate-950 border-slate-950 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                        <CreditCard className="w-4 h-4" /> Card
-                      </button>
-                      <button onClick={() => setPaymentMethod('wallet')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${paymentMethod === 'wallet' ? 'bg-slate-950 border-slate-950 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Wallet
-                      </button>
+                  <h3 className="font-extrabold text-slate-950 text-md tracking-tight border-b border-slate-100 pb-3 mb-5">Secure Payment</h3>
+
+                  <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 mb-6 text-xs text-violet-800 space-y-2">
+                    <p className="font-bold flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Razorpay Secure Checkout</p>
+                    <p>You will be redirected to Razorpay's secure payment page where you can pay using:</p>
+                    <ul className="list-disc pl-5 space-y-1 text-violet-700">
+                      <li>Credit / Debit Card (Visa, Mastercard, RuPay)</li>
+                      <li>UPI (GPay, PhonePe, Paytm)</li>
+                      <li>Net Banking</li>
+                      <li>Wallets</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2 text-xs mb-6">
+                    <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-bold text-slate-900">{formatINR(subtotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Shipping</span><span className="font-bold text-emerald-600">FREE</span></div>
+                    <div className="flex justify-between pt-2 border-t border-slate-200 text-sm">
+                      <span className="font-extrabold text-slate-900">Total to Pay</span>
+                      <span className="font-black text-lg text-slate-900">{formatINR(total)}</span>
                     </div>
-                    {paymentMethod === 'card' ? (
-                      <div className="space-y-4">
-                        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 font-mono flex flex-col justify-between h-44 relative overflow-hidden">
-                          <div className="absolute right-0 bottom-0 p-12 bg-white/5 rounded-tl-full pointer-events-none" />
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <span className="text-[10px] text-slate-400 font-sans">SECURE PAYMENT</span>
-                              <h4 className="text-[11px] font-bold tracking-widest uppercase font-sans">SHOPEVALLEY VAULT</h4>
-                            </div>
-                            <span className="text-sm font-semibold italic text-slate-300">VISA</span>
-                          </div>
-                          <div className="text-md sm:text-lg tracking-widest text-center my-2 font-bold select-all">{cardNumber || '•••• •••• •••• ••••'}</div>
-                          <div className="flex justify-between items-end text-[10px]">
-                            <div>
-                              <p className="text-[9px] text-slate-400 font-sans uppercase">Holder</p>
-                              <p className="font-bold tracking-wide truncate max-w-[130px]">{cardHolder || 'CARDHOLDER NAME'}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[9px] text-slate-400 font-sans uppercase">Expiry</p>
-                              <p className="font-bold">{cardExpiry || 'MM / YY'}</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs font-sans">
-                          <div className="sm:col-span-2">
-                            <label className="block text-xs font-bold text-slate-700 mb-1">Card Holder Name</label>
-                            <input type="text" value={cardHolder} onChange={(e) => setCardHolder(e.target.value.toUpperCase())} placeholder="e.g. JOHN DOE" className="w-full text-xs sm:text-sm px-3.5 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white uppercase font-mono" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1">Card Number</label>
-                            <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4000 1234 5678 9010" maxLength={19} className="w-full text-xs sm:text-sm px-3.5 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white font-mono" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Expiry</label>
-                              <input type="text" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} placeholder="MM/YY" maxLength={5} className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white text-center font-mono" />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">CVV</label>
-                              <input type="password" value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ''))} placeholder="•••" maxLength={3} className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white text-center font-mono" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl text-left space-y-2.5 text-xs">
-                        <p className="font-bold text-emerald-800">Instant Wallet Payment</p>
-                        <p className="text-emerald-700/80">Use the ShopeValley wallet to complete checkout without card details.</p>
-                      </div>
-                    )}
                   </div>
-                  <div className="mt-8 pt-5 border-t border-slate-100">
-                    <button onClick={simulatePayment} className="w-full bg-[#10b981] hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider font-sans">
-                      <ShieldCheck className="w-5 h-5 text-white" />
-                      Pay {formatINR(total)}
-                    </button>
-                    <p className="text-[10px] text-slate-400 text-center mt-2.5 font-mono">Your payment is encrypted and routed through the ShopeValley gateway.</p>
-                  </div>
+
+                  <button
+                    onClick={handleRazorpayPayment}
+                    className="w-full bg-[#7c3aed] hover:bg-violet-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer text-sm"
+                  >
+                    <CreditCard className="w-5 h-5" />
+                    Pay {formatINR(total)} Securely
+                  </button>
+                  <p className="text-[10px] text-slate-400 text-center mt-3">Powered by Razorpay. 256-bit SSL encrypted.</p>
                 </div>
               )}
             </div>
