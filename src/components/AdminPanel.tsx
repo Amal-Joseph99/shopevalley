@@ -23,7 +23,6 @@ import {
   Mail, 
   ChevronDown, 
   Plus, 
-  Edit2, 
   Trash2, 
   Check, 
   X, 
@@ -149,6 +148,7 @@ export default function AdminPanel({
 
   useEffect(() => {
     if (activeTab === 'ads') fetchAdCampaigns();
+    if (activeTab === 'homepage') fetchHomepageSections();
   }, [activeTab]);
 
 
@@ -177,96 +177,152 @@ export default function AdminPanel({
   const [userAccounts, setUserAccounts] = useState<any[]>([]);
 
   // Ads/Homepage customizations
-  const [homepageSettings, setHomepageSettings] = useState({
-    storeName: '',
-    tagline: '',
-    bannerImage: '',
-    bannerImageTwo: '',
-    primaryColor: '#7c3aed',
-    accentColor: '#10b981'
-  });
+  // (Homepage settings removed - sections managed via dedicated tab)
 
-  // Ads Management State
-  interface AdCampaignRow {
+  // Ads Management State (image upload based)
+  interface AdBannerRow {
     id: string;
-    title: string;
-    subtitle: string;
     image_url: string;
-    link: string;
-    badge: string;
+    image_path: string;
     display_order: number;
     status: string;
-    created_at: string;
   }
-  const [adCampaigns, setAdCampaigns] = useState<AdCampaignRow[]>([]);
+  const [adBanners, setAdBanners] = useState<AdBannerRow[]>([]);
   const [isAdsLoading, setIsAdsLoading] = useState(false);
-  const [showAdModal, setShowAdModal] = useState(false);
-  const [editingAd, setEditingAd] = useState<AdCampaignRow | null>(null);
-  const [adForm, setAdForm] = useState({ title: '', subtitle: '', image_url: '', link: '', badge: '', display_order: 0 });
-  const [adSaving, setAdSaving] = useState(false);
+  const [adUploading, setAdUploading] = useState(false);
+  const [adUploadProgress, setAdUploadProgress] = useState(0);
 
   const fetchAdCampaigns = async () => {
     setIsAdsLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('ad_campaigns')
-      .select('*')
+      .select('id, image_url, image_path, display_order, status')
       .order('display_order', { ascending: true });
-    if (!error && data) setAdCampaigns(data);
+    if (data) {
+      const resolved = data.map(ad => {
+        let finalUrl = ad.image_url || '';
+        if (ad.image_path) {
+          const { data: urlData } = supabase.storage.from('ad-banners').getPublicUrl(ad.image_path);
+          if (urlData?.publicUrl) finalUrl = urlData.publicUrl;
+        }
+        return { ...ad, image_url: finalUrl };
+      });
+      setAdBanners(resolved);
+    }
     setIsAdsLoading(false);
   };
 
-  const handleSaveAd = async () => {
-    if (!adForm.title.trim() || !adForm.image_url.trim()) return;
-    setAdSaving(true);
-    if (editingAd) {
-      await supabase.from('ad_campaigns').update({
-        title: adForm.title.trim(),
-        subtitle: adForm.subtitle.trim(),
-        image_url: adForm.image_url.trim(),
-        link: adForm.link.trim(),
-        badge: adForm.badge.trim(),
-        display_order: adForm.display_order,
-        updated_at: new Date().toISOString()
-      }).eq('id', editingAd.id);
-    } else {
-      await supabase.from('ad_campaigns').insert({
-        title: adForm.title.trim(),
-        subtitle: adForm.subtitle.trim(),
-        image_url: adForm.image_url.trim(),
-        link: adForm.link.trim(),
-        badge: adForm.badge.trim(),
-        display_order: adForm.display_order
-      });
+  const handleAdImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (adBanners.length >= 5) { alert('Maximum 5 banner ads allowed.'); return; }
+
+    const file = files[0];
+    if (!file.type.startsWith('image/')) { alert('Only image files allowed.'); return; }
+
+    setAdUploading(true);
+    setAdUploadProgress(10);
+
+    const fileName = `banner_${Date.now()}_${Math.random().toString(36).substr(2, 6)}.${file.name.split('.').pop()}`;
+    
+    setAdUploadProgress(40);
+    const { error: uploadError } = await supabase.storage
+      .from('ad-banners')
+      .upload(fileName, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      alert('Upload failed: ' + uploadError.message);
+      setAdUploading(false);
+      return;
     }
-    setAdSaving(false);
-    setShowAdModal(false);
-    setEditingAd(null);
-    setAdForm({ title: '', subtitle: '', image_url: '', link: '', badge: '', display_order: 0 });
+
+    setAdUploadProgress(70);
+
+    const { data: urlData } = supabase.storage.from('ad-banners').getPublicUrl(fileName);
+
+    await supabase.from('ad_campaigns').insert({
+      title: `Banner ${adBanners.length + 1}`,
+      image_url: urlData?.publicUrl || '',
+      image_path: fileName,
+      display_order: adBanners.length,
+      status: 'Active'
+    });
+
+    setAdUploadProgress(100);
+    setAdUploading(false);
+    setAdUploadProgress(0);
     fetchAdCampaigns();
+    e.target.value = '';
   };
 
-  const handleDeleteAd = async (id: string) => {
-    if (!confirm('Delete this ad campaign?')) return;
+  const handleDeleteAd = async (id: string, imagePath: string) => {
+    if (!confirm('Delete this banner ad?')) return;
+    if (imagePath) {
+      await supabase.storage.from('ad-banners').remove([imagePath]);
+    }
     await supabase.from('ad_campaigns').delete().eq('id', id);
     fetchAdCampaigns();
   };
 
-  const handleToggleAdStatus = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-    await supabase.from('ad_campaigns').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
-    fetchAdCampaigns();
+  // Homepage Sections Management
+  interface SectionProduct {
+    id: string;
+    section_id: string;
+    product_id: string;
+    display_order: number;
+    product?: any;
+  }
+  interface HomepageSection {
+    id: string;
+    name: string;
+    display_order: number;
+    status: string;
+    products: SectionProduct[];
+  }
+  const [homepageSections, setHomepageSections] = useState<HomepageSection[]>([]);
+  const [isSectionsLoading, setIsSectionsLoading] = useState(false);
+  const [showAddProductToSection, setShowAddProductToSection] = useState<string | null>(null);
+  const [sectionProductSearch, setSectionProductSearch] = useState('');
+
+  const fetchHomepageSections = async () => {
+    setIsSectionsLoading(true);
+    const { data: sections } = await supabase
+      .from('homepage_sections')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (sections) {
+      const sectionsWithProducts: HomepageSection[] = [];
+      for (const sec of sections) {
+        const { data: sectionProducts } = await supabase
+          .from('homepage_section_products')
+          .select('*, products:product_id(id, name, images, price, original_price)')
+          .eq('section_id', sec.id)
+          .order('display_order', { ascending: true });
+        sectionsWithProducts.push({ ...sec, products: sectionProducts || [] });
+      }
+      setHomepageSections(sectionsWithProducts);
+    }
+    setIsSectionsLoading(false);
   };
 
-  const openEditAd = (ad: AdCampaignRow) => {
-    setEditingAd(ad);
-    setAdForm({ title: ad.title, subtitle: ad.subtitle || '', image_url: ad.image_url, link: ad.link || '', badge: ad.badge || '', display_order: ad.display_order });
-    setShowAdModal(true);
+  const handleAddProductToSection = async (sectionId: string, productId: string) => {
+    const existing = homepageSections.find(s => s.id === sectionId);
+    if (existing && existing.products.some(p => p.product_id === productId)) return;
+    
+    await supabase.from('homepage_section_products').insert({
+      section_id: sectionId,
+      product_id: productId,
+      display_order: existing ? existing.products.length : 0
+    });
+    fetchHomepageSections();
+    setShowAddProductToSection(null);
+    setSectionProductSearch('');
   };
 
-  const openNewAd = () => {
-    setEditingAd(null);
-    setAdForm({ title: '', subtitle: '', image_url: '', link: '', badge: '', display_order: adCampaigns.length });
-    setShowAdModal(true);
+  const handleRemoveProductFromSection = async (id: string) => {
+    await supabase.from('homepage_section_products').delete().eq('id', id);
+    fetchHomepageSections();
   };
 
   // New products attributes state for form
@@ -501,7 +557,7 @@ export default function AdminPanel({
               { id: 'products', label: 'Products', icon: ShoppingBag, path: 'admin' },
               { id: 'ads', label: 'Ads Management', icon: Megaphone, path: 'admin' },
               { id: 'orders', label: 'Orders', icon: ClipboardList, path: 'admin' },
-              { id: 'homepage', label: 'Homepage Settings', icon: Home, path: 'admin' },
+              { id: 'homepage', label: 'Homepage Sections', icon: Home, path: 'admin' },
               { id: 'accounts', label: 'Accounts', icon: UserCheck, path: 'admin' },
               { id: 'inbox', label: 'Inbox Support', icon: MessageSquare, path: 'admin' }
             ].map((tab) => {
@@ -1075,115 +1131,70 @@ export default function AdminPanel({
           {/* ======================= TAB 4: ADS MANAGEMENT ======================= */}
           {activeTab === 'ads' && (
             <div className="space-y-6 text-left" id="admin_ads_management">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                <div>
-                  <h2 className="text-xl font-extrabold text-slate-900">Ad Campaigns</h2>
-                  <p className="text-xs text-slate-500">Manage homepage banner ads shown to buyers. Active ads rotate in the carousel.</p>
-                </div>
-                <button
-                  onClick={openNewAd}
-                  className="flex items-center gap-2 bg-[#7c3aed] text-white text-xs font-bold py-2.5 px-4 rounded-xl hover:bg-violet-700 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Add Campaign
-                </button>
+              <div className="border-b border-slate-200 pb-4">
+                <h2 className="text-xl font-extrabold text-slate-900">Homepage Banner Ads</h2>
+                <p className="text-xs text-slate-500">Upload up to 5 banner images. They will auto-rotate every 7 seconds on the homepage carousel.</p>
+                <p className="text-xs text-blue-600 font-bold mt-1">Recommended size: 1200 x 300 px (4:1 ratio). Images display at 300px height without cropping.</p>
               </div>
 
               {isAdsLoading ? (
                 <div className="text-center py-16">
                   <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto"></div>
-                  <p className="text-xs text-slate-400 mt-3">Loading campaigns...</p>
-                </div>
-              ) : adCampaigns.length === 0 ? (
-                <div className="text-center py-16 bg-slate-50 rounded-2xl border border-slate-200">
-                  <Megaphone className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-slate-600">No ad campaigns yet</p>
-                  <p className="text-xs text-slate-400 mt-1">Create your first banner ad to display on the homepage.</p>
-                  <button onClick={openNewAd} className="mt-4 text-xs font-bold text-[#7c3aed] hover:underline cursor-pointer">+ Add First Campaign</button>
+                  <p className="text-xs text-slate-400 mt-3">Loading banners...</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {adCampaigns.map((ad) => (
-                    <div key={ad.id} className={`bg-white border rounded-2xl overflow-hidden shadow-xs transition-all ${ad.status === 'Active' ? 'border-emerald-200' : 'border-slate-200 opacity-70'}`}>
-                      <div className="relative h-36 bg-slate-100">
-                        <img src={ad.image_url} alt={ad.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        <span className={`absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full ${ad.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-400 text-white'}`}>
-                          {ad.status}
-                        </span>
-                        {ad.badge && (
-                          <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{ad.badge}</span>
-                        )}
-                      </div>
-                      <div className="p-4 space-y-2">
-                        <h4 className="font-bold text-sm text-slate-900 truncate">{ad.title}</h4>
-                        {ad.subtitle && <p className="text-[11px] text-slate-500 line-clamp-2">{ad.subtitle}</p>}
-                        {ad.link && <p className="text-[10px] font-mono text-violet-500 truncate">Link: {ad.link}</p>}
-                        <p className="text-[10px] text-slate-400">Order: {ad.display_order}</p>
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                          <button onClick={() => openEditAd(ad)} className="flex-1 text-[11px] font-bold text-slate-600 hover:text-violet-600 py-1.5 rounded-lg hover:bg-violet-50 transition-colors cursor-pointer">
-                            <Edit2 className="w-3 h-3 inline mr-1" />Edit
-                          </button>
-                          <button onClick={() => handleToggleAdStatus(ad.id, ad.status)} className={`flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-colors cursor-pointer ${ad.status === 'Active' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}>
-                            {ad.status === 'Active' ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button onClick={() => handleDeleteAd(ad.id)} className="text-[11px] font-bold text-red-500 hover:text-red-700 py-1.5 px-2 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
-                            <Trash2 className="w-3 h-3" />
+                <div className="space-y-5">
+                  {/* Current Banners Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {adBanners.map((ad, idx) => (
+                      <div key={ad.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs group relative">
+                        <div className="h-[120px] bg-slate-50">
+                          <img src={ad.image_url} alt={`Banner ${idx + 1}`} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                        <div className="p-3 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-600">Banner {idx + 1}</span>
+                          <button
+                            onClick={() => handleDeleteAd(ad.id, ad.image_path)}
+                            className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" /> Remove
                           </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
 
-              {/* Ad Campaign Modal */}
-              {showAdModal && (
-                <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-                  <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-5">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <h3 className="font-extrabold text-slate-900 text-sm">{editingAd ? 'Edit Campaign' : 'New Ad Campaign'}</h3>
-                      <button onClick={() => { setShowAdModal(false); setEditingAd(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-5 h-5" /></button>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Title *</label>
-                        <input type="text" value={adForm.title} onChange={(e) => setAdForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Summer Sale 50% Off" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Subtitle</label>
-                        <input type="text" value={adForm.subtitle} onChange={(e) => setAdForm(p => ({ ...p, subtitle: e.target.value }))} placeholder="e.g. Limited time offer on electronics" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Banner Image URL *</label>
-                        <input type="text" value={adForm.image_url} onChange={(e) => setAdForm(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500 font-mono" />
-                        {adForm.image_url && (
-                          <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 h-28">
-                            <img src={adForm.image_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {/* Upload Button (+ icon) */}
+                    {adBanners.length < 5 && (
+                      <label className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center h-[168px] cursor-pointer hover:border-violet-400 hover:bg-violet-50/30 transition-all">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAdImageUpload}
+                          className="hidden"
+                          disabled={adUploading}
+                        />
+                        {adUploading ? (
+                          <div className="text-center">
+                            <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-2"></div>
+                            <p className="text-xs text-violet-600 font-bold">{adUploadProgress}%</p>
                           </div>
+                        ) : (
+                          <>
+                            <Plus className="w-8 h-8 text-slate-400 mb-2" />
+                            <p className="text-xs font-bold text-slate-500">Upload Banner</p>
+                            <p className="text-[10px] text-slate-400 mt-1">1200 x 300 px recommended</p>
+                          </>
                         )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Click Link (route)</label>
-                          <input type="text" value={adForm.link} onChange={(e) => setAdForm(p => ({ ...p, link: e.target.value }))} placeholder="e.g. category/electronics" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500 font-mono" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Badge Label</label>
-                          <input type="text" value={adForm.badge} onChange={(e) => setAdForm(p => ({ ...p, badge: e.target.value }))} placeholder="e.g. HOT DEAL" className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Display Order</label>
-                        <input type="number" value={adForm.display_order} onChange={(e) => setAdForm(p => ({ ...p, display_order: parseInt(e.target.value) || 0 }))} className="w-24 text-xs border border-slate-200 rounded-xl py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                      </div>
-                    </div>
+                      </label>
+                    )}
+                  </div>
 
-                    <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                      <button onClick={() => { setShowAdModal(false); setEditingAd(null); }} className="px-4 py-2 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer">Cancel</button>
-                      <button onClick={handleSaveAd} disabled={adSaving || !adForm.title.trim() || !adForm.image_url.trim()} className="px-5 py-2 text-xs font-bold text-white bg-[#7c3aed] rounded-xl hover:bg-violet-700 disabled:opacity-50 cursor-pointer">
-                        {adSaving ? 'Saving...' : editingAd ? 'Update Campaign' : 'Create Campaign'}
-                      </button>
-                    </div>
+                  {adBanners.length >= 5 && (
+                    <p className="text-xs text-amber-600 font-bold text-center bg-amber-50 border border-amber-200 rounded-lg py-2">Maximum 5 banners reached. Remove one to upload a new one.</p>
+                  )}
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                    <p className="text-xs text-slate-500"><span className="font-bold">{adBanners.length}/5</span> banners uploaded. Active banners rotate every 7 seconds on homepage.</p>
                   </div>
                 </div>
               )}
@@ -1269,63 +1280,102 @@ export default function AdminPanel({
           )}
 
 
-          {/* ======================= TAB 6: HOMEPAGE SETTINGS ======================= */}
+          {/* ======================= TAB 6: HOMEPAGE SECTIONS ======================= */}
           {activeTab === 'homepage' && (
-            <div className="space-y-8 text-left" id="admin_homepage_settings">
+            <div className="space-y-6 text-left" id="admin_homepage_settings">
               <div className="border-b border-slate-200 pb-4">
-                <h2 className="text-xl font-extrabold text-slate-900">Custom Homepage Layout</h2>
-                <p className="text-xs text-slate-500">Tailor labels, tagline overlays, and theme color nodes to establish standard design tone.</p>
+                <h2 className="text-xl font-extrabold text-slate-900">Homepage Sections</h2>
+                <p className="text-xs text-slate-500">Manage which products appear in each homepage section (Featured Products, Hot Deals, Trending Now).</p>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs max-w-3xl space-y-6">
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-600">Company / Marketplace Name</label>
-                    <input 
-                      type="text" 
-                      value={homepageSettings.storeName}
-                      onChange={(e) => setHomepageSettings(prev => ({ ...prev, storeName: e.target.value }))}
-                      className="w-full text-xs font-bold text-slate-800 border border-slate-200 rounded-xl py-2 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              {isSectionsLoading ? (
+                <div className="text-center py-16">
+                  <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto"></div>
+                  <p className="text-xs text-slate-400 mt-3">Loading sections...</p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {homepageSections.map(section => (
+                    <div key={section.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div>
+                          <h3 className="font-extrabold text-sm text-slate-900">{section.name}</h3>
+                          <p className="text-[10px] text-slate-400">{section.products.length} products assigned</p>
+                        </div>
+                        <button
+                          onClick={() => setShowAddProductToSection(section.id)}
+                          className="flex items-center gap-1.5 bg-[#7c3aed] text-white text-[11px] font-bold py-2 px-3 rounded-lg hover:bg-violet-700 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" /> Add Product
+                        </button>
+                      </div>
+
+                      {section.products.length === 0 ? (
+                        <p className="text-xs text-slate-400 text-center py-6">No products in this section yet. Click "Add Product" above.</p>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                          {section.products.map(sp => (
+                            <div key={sp.id} className="relative bg-slate-50 border border-slate-100 rounded-xl overflow-hidden group">
+                              {sp.product?.images?.[0] && (
+                                <img src={sp.product.images[0]} alt="" className="w-full h-20 object-cover" referrerPolicy="no-referrer" />
+                              )}
+                              <div className="p-2">
+                                <p className="text-[10px] font-bold text-slate-800 truncate">{sp.product?.name || 'Unknown'}</p>
+                                <p className="text-[10px] text-slate-500 font-mono">₹{sp.product?.price || 0}</p>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveProductFromSection(sp.id)}
+                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                title="Remove"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Product to Section Modal */}
+              {showAddProductToSection && (
+                <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 max-h-[80vh] flex flex-col">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                      <h3 className="font-extrabold text-slate-900 text-sm">Add Product to Section</h3>
+                      <button onClick={() => { setShowAddProductToSection(null); setSectionProductSearch(''); }} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-5 h-5" /></button>
+                    </div>
+                    <input
+                      type="text"
+                      value={sectionProductSearch}
+                      onChange={(e) => setSectionProductSearch(e.target.value)}
+                      placeholder="Search products by name..."
+                      className="w-full text-xs border border-slate-200 rounded-xl py-2.5 px-3 mb-4 focus:outline-none focus:ring-1 focus:ring-violet-500"
                     />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-600">Primary Branding Tint</label>
-                    <div className="flex gap-2">
-                      <input 
-                        type="color" 
-                        value={homepageSettings.primaryColor}
-                        onChange={(e) => setHomepageSettings(prev => ({ ...prev, primaryColor: e.target.value }))}
-                        className="w-10 h-10 border border-slate-200 rounded cursor-pointer"
-                      />
-                      <input 
-                        type="text" 
-                        value={homepageSettings.primaryColor}
-                        onChange={(e) => setHomepageSettings(prev => ({ ...prev, primaryColor: e.target.value }))}
-                        className="flex-grow text-xs font-mono font-bold text-slate-600 border border-slate-200 rounded-xl p-2"
-                      />
+                    <div className="overflow-y-auto flex-grow space-y-2">
+                      {dbProducts
+                        .filter(p => p.name.toLowerCase().includes(sectionProductSearch.toLowerCase()))
+                        .slice(0, 20)
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => handleAddProductToSection(showAddProductToSection, p.id)}
+                            className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-violet-50 border border-slate-100 transition-colors cursor-pointer text-left"
+                          >
+                            {p.images?.[0] && <img src={p.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" referrerPolicy="no-referrer" />}
+                            <div className="min-w-0 flex-grow">
+                              <p className="text-xs font-bold text-slate-900 truncate">{p.name}</p>
+                              <p className="text-[10px] text-slate-500">₹{p.price} • {p.category}</p>
+                            </div>
+                            <Plus className="w-4 h-4 text-violet-500 shrink-0" />
+                          </button>
+                        ))}
                     </div>
                   </div>
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-600">Primary Marketing Tagline Overlay</label>
-                  <textarea 
-                    value={homepageSettings.tagline}
-                    onChange={(e) => setHomepageSettings(prev => ({ ...prev, tagline: e.target.value }))}
-                    rows={3}
-                    className="w-full text-xs border border-slate-200 rounded-xl py-2 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  />
-                </div>
-
-                <button 
-                  onClick={() => alert("Substantial Layout variables applied to local browser memory modules! Design updated.")}
-                  className="bg-[#7c3aed] text-white font-extrabold text-xs py-2.5 px-6 rounded-xl shadow-md shadow-violet-100 hover:bg-violet-700 transition-colors"
-                >
-                  Apply Settings Layout
-                </button>
-
-              </div>
+              )}
             </div>
           )}
 

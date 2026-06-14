@@ -6,102 +6,111 @@ interface ActiveAdsProps {
   onNavigate: (path: string) => void;
 }
 
-interface AdCampaign {
+interface AdBanner {
   id: string;
-  title: string;
-  subtitle: string;
   image_url: string;
-  link: string;
-  badge: string;
-  display_order: number;
+  image_path: string;
 }
 
-export default function ActiveAds({ onNavigate }: ActiveAdsProps) {
+export default function ActiveAds(_props: ActiveAdsProps) {
   const [activeIdx, setActiveIdx] = useState(0);
-  const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
+  const [banners, setBanners] = useState<AdBanner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchAds = async () => {
       const { data } = await supabase
         .from('ad_campaigns')
-        .select('*')
+        .select('id, image_url, image_path')
         .eq('status', 'Active')
-        .order('display_order', { ascending: true });
-      if (data && data.length > 0) setCampaigns(data);
+        .order('display_order', { ascending: true })
+        .limit(5);
+
+      if (data && data.length > 0) {
+        const resolved = data.map(ad => {
+          let finalUrl = ad.image_url || '';
+          if (ad.image_path) {
+            const { data: urlData } = supabase.storage.from('ad-banners').getPublicUrl(ad.image_path);
+            if (urlData?.publicUrl) finalUrl = urlData.publicUrl;
+          }
+          return { ...ad, image_url: finalUrl };
+        });
+        setBanners(resolved);
+      }
       setIsLoading(false);
     };
     fetchAds();
   }, []);
 
   useEffect(() => {
-    if (campaigns.length <= 1) return;
+    if (banners.length <= 1) return;
     const timer = setInterval(() => {
-      setActiveIdx((prev) => (prev + 1) % campaigns.length);
-    }, 8000);
+      setActiveIdx((prev) => (prev + 1) % banners.length);
+    }, 7000);
     return () => clearInterval(timer);
-  }, [campaigns.length]);
+  }, [banners.length]);
 
-  if (isLoading || campaigns.length === 0) return null;
+  if (isLoading || banners.length === 0) return null;
 
   const handlePrev = () => {
-    setActiveIdx((prev) => (prev === 0 ? campaigns.length - 1 : prev - 1));
+    setActiveIdx((prev) => (prev === 0 ? banners.length - 1 : prev - 1));
   };
 
   const handleNext = () => {
-    setActiveIdx((prev) => (prev + 1) % campaigns.length);
+    setActiveIdx((prev) => (prev + 1) % banners.length);
   };
 
-  const currentCamp = campaigns[activeIdx];
-
   return (
-    <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4" id="sh_active_ads_section">
-      <div 
-        onClick={() => currentCamp.link && onNavigate(currentCamp.link)}
-        className="w-full relative bg-zinc-900 rounded-[18px] overflow-hidden h-[260px] sm:h-[420px] shadow-sm border border-slate-100 cursor-pointer group"
-      >
-        <div className="absolute inset-0 z-0">
-          <img 
-            src={currentCamp.image_url} 
-            alt={currentCamp.title}
-            className="w-full h-full object-cover select-none transition-transform duration-1000 transform group-hover:scale-101"
-            referrerPolicy="no-referrer"
-          />
-        </div>
+    <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-3" id="sh_hero_ads_carousel">
+      <div className="relative w-full h-[300px] rounded-2xl overflow-hidden bg-slate-100 shadow-sm">
+        {banners.map((banner, idx) => (
+          <div
+            key={banner.id}
+            className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+              idx === activeIdx ? 'opacity-100 z-10' : 'opacity-0 z-0'
+            }`}
+          >
+            <img
+              src={banner.image_url}
+              alt=""
+              className="w-full h-full object-contain bg-white"
+              referrerPolicy="no-referrer"
+              draggable={false}
+            />
+          </div>
+        ))}
 
-        {campaigns.length > 1 && (
+        {banners.length > 1 && (
           <>
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-2 bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-xs">
-              {campaigns.map((_, idx) => (
-                <button 
+            {/* Navigation Arrows */}
+            <button
+              onClick={handlePrev}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white/80 hover:bg-white text-slate-700 shadow-md transition-all cursor-pointer"
+              aria-label="Previous"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleNext}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white/80 hover:bg-white text-slate-700 shadow-md transition-all cursor-pointer"
+              aria-label="Next"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+
+            {/* Dots */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+              {banners.map((_, idx) => (
+                <button
                   key={idx}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveIdx(idx);
-                  }}
-                  className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
-                    activeIdx === idx ? 'bg-[#7c3aed] w-5' : 'bg-white/50 hover:bg-white'
+                  onClick={() => setActiveIdx(idx)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${
+                    activeIdx === idx ? 'bg-blue-600 w-6' : 'bg-white/70 hover:bg-white border border-slate-300'
                   }`}
                   aria-label={`Slide ${idx + 1}`}
                 />
               ))}
             </div>
-
-            <button 
-              onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/40 text-white hover:text-violet-400 hover:bg-black/60 transition-all z-10 cursor-pointer backdrop-blur-xs"
-              aria-label="Previous Slide"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            
-            <button 
-              onClick={(e) => { e.stopPropagation(); handleNext(); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/40 text-white hover:text-violet-400 hover:bg-black/60 transition-all z-10 cursor-pointer backdrop-blur-xs"
-              aria-label="Next Slide"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
           </>
         )}
       </div>

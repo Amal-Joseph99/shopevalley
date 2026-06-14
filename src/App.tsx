@@ -4,12 +4,12 @@ import {
   RouteState 
 } from './components/CustomRouter';
 import Header from './components/Header';
-import Recommendations from './components/Recommendations';
 import ProductCard from './components/ProductCard';
 import CartAndCheckout from './components/CartAndCheckout';
 import OrderTracker from './components/OrderTracker';
 import OrderStatusPage from './components/OrderStatusPage';
 import ActiveAds from './components/ActiveAds';
+import HomepageSections from './components/HomepageSections';
 
 import LoginScreen from './components/LoginScreen';
 import AdminPanel from './components/AdminPanel';
@@ -605,136 +605,13 @@ export default function App() {
             {/* Homepage Banner Ads Carousel */}
             <ActiveAds onNavigate={handleProtectedNavigate} />
 
-            {/* Sec 3: Personalized product recommendations */}
-            <div id="sh_personalized_recs_section_mount" className="my-1">
-              <Recommendations 
-                products={products}
-                viewHistory={viewHistory} 
-                onProductClick={(cat, sl) => navigate(`category/${cat}/${sl}`)}
-                onAddToCart={handleAddToCartWithAuth}
-                onToggleWishlist={handleToggleWishlist}
-                wishlist={wishlist}
-                onNavigate={handleProtectedNavigate}
-              />
-            </div>
-
-            {/* Sec 4: Hot Deals Section */}
-            {(() => {
-              const hotDeals = products.filter(p => p.originalPrice && p.originalPrice > p.price).slice(0, 8);
-              if (hotDeals.length === 0) return null;
-              return (
-                <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 my-1" id="sh_hot_deals_segment">
-                  <div className="flex items-center justify-between gap-4 mb-3 pb-2.5 border-b border-slate-200/60" id="sh_hot_deals_header_row">
-                    <h2 className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-slate-900 uppercase font-sans flex items-center gap-2 leading-none">
-                      <span className="w-1.5 h-5 bg-[#2E7D32] rounded-full inline-block shrink-0"></span>
-                      <span>Hot Deals</span>
-                    </h2>
-                    
-                    <button 
-                      onClick={() => navigate('section/hot-deals')} 
-                      className="text-xs font-bold text-[#2E7D32] hover:underline hover:text-[#1b5e20] transition-colors uppercase tracking-wide cursor-pointer shrink-0"
-                    >
-                      See More &rarr;
-                    </button>
-                  </div>
-
-                  {/* Grid with 8 beautiful ProductCard high fidelity rendering (4 columns desktop, 2 mobile) */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {hotDeals.map((p) => {
-                      const isFav = wishlist.some(item => item.id === p.id);
-                      return (
-                        <ProductCard 
-                          key={p.id}
-                          product={p}
-                          isWishlisted={isFav}
-                          onToggleWishlist={handleToggleWishlist}
-                          onAddToCart={handleAddToCartWithAuth}
-                          onNavigate={handleProtectedNavigate}
-                        />
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })()}
-
-
-            {/* Sec 6: Special Offers Section */}
-            {(() => {
-              const specialOffers = products.filter(p => p.category === 'Combo Offers').slice(0, 8);
-              if (specialOffers.length === 0) return null;
-              return (
-                <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 my-1" id="sh_combos_section">
-                  <div className="flex items-center justify-between gap-4 mb-3 pb-2.5 border-b border-slate-200/60" id="sh_special_offers_header_row">
-                    <h2 className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-slate-900 uppercase font-sans flex items-center gap-2 leading-none">
-                      <span className="w-1.5 h-5 bg-[#2E7D32] rounded-full inline-block shrink-0"></span>
-                      <span>Special Offers</span>
-                    </h2>
-                    
-                    <button 
-                      onClick={() => navigate('section/special-offers')} 
-                      className="text-xs font-bold text-[#2E7D32] hover:underline hover:text-[#1b5e20] transition-colors uppercase tracking-wide cursor-pointer shrink-0"
-                    >
-                      See More &rarr;
-                    </button>
-                  </div>
-
-                  {/* Grid of standard ProductCard (2 columns on mobile, 4 columns on desktop) */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in">
-                    {specialOffers.map((p) => {
-                      const isFav = wishlist.some(item => item.id === p.id);
-                      return (
-                        <ProductCard 
-                          key={p.id}
-                          product={p}
-                          isWishlisted={isFav}
-                          onToggleWishlist={handleToggleWishlist}
-                          onAddToCart={handleAddToCartWithAuth}
-                          onNavigate={handleProtectedNavigate}
-                        />
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })()}
-
-            {/* Sec 7: TOP BRANDS Section */}
-            {allFilteredProducts.length > 0 && (
-              <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 my-1" id="sh_top_brands_section">
-                
-                {/* Filter metrics heading */}
-                <div className="flex items-center justify-between gap-4 border-t border-slate-200/80 pt-6 pb-4" id="sh_top_brands_header_row">
-                  <h2 className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-slate-900 uppercase font-sans flex items-center gap-2 leading-none">
-                    <span className="w-1.5 h-5 bg-[#2E7D32] rounded-full inline-block shrink-0"></span>
-                    <span>TOP BRANDS</span>
-                  </h2>
-                  
-                  <button 
-                    onClick={() => navigate('section/top-brands')} 
-                    className="text-xs font-bold text-[#2E7D32] hover:underline hover:text-[#1b5e20] transition-colors uppercase tracking-wide cursor-pointer shrink-0"
-                  >
-                    See More &rarr;
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {allFilteredProducts.slice(0, 8).map((p) => {
-                    const isFav = wishlist.some(item => item.id === p.id);
-                    return (
-                      <ProductCard 
-                        key={p.id}
-                        product={p}
-                        isWishlisted={isFav}
-                        onToggleWishlist={handleToggleWishlist}
-                        onAddToCart={handleAddToCartWithAuth}
-                        onNavigate={handleProtectedNavigate}
-                      />
-                    );
-                  })}
-                </div>
-              </section>
-            )}
+            {/* Dynamic Homepage Sections: Featured Products, Hot Deals, Trending Now */}
+            <HomepageSections
+              onNavigate={handleProtectedNavigate}
+              onAddToCart={handleAddToCartWithAuth}
+              onToggleWishlist={handleToggleWishlist}
+              wishlist={wishlist}
+            />
           </div>
         ) : null}
 
