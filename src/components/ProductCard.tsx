@@ -130,7 +130,7 @@ export default function ProductCard({
         <div className="text-left">
           {/* Brand Name */}
           <div className="text-[10px] font-extrabold tracking-wider text-slate-400 uppercase truncate">
-            {product.vendorName || "Shopevalley"}
+            {product.brand || product.category}
           </div>
 
           {/* Product details and name - MAX 2 LINES */}

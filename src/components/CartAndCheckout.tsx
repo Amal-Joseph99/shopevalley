@@ -7,12 +7,10 @@ import {
   CheckCircle2, 
   ShoppingBag, 
   ArrowLeft,
-  Loader2,
   Calendar
 } from 'lucide-react';
 import { CartItem, Order } from '../types';
 import { formatINR } from './ProductCard';
-import { getLiveShippingRates, pickCheapestRate, ShippingRate } from '../lib/shippingClient';
 
 interface CartAndCheckoutProps {
   cartItems: CartItem[];
@@ -57,20 +55,11 @@ export default function CartAndCheckout({
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [zipCode, setZipCode] = useState('');
-  const [originPincode, setOriginPincode] = useState<string>(() => import.meta.env.VITE_ORIGIN_PINCODE || '');
   const [phone, setPhone] = useState('');
   const [artisanNote, setArtisanNote] = useState('');
-  const shippingMethod: 'standard' | 'express' = 'standard';
   const [savedAddresses, setSavedAddresses] = useState<Array<{id: string; name: string; email: string; address: string; city: string; zipCode: string; phone: string}>>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [useNewAddress, setUseNewAddress] = useState(true);
-
-  // Shipping rates state
-  const [ratesLoading, setRatesLoading] = useState(false);
-  const [ratesError, setRatesError] = useState<string | null>(null);
-  const [rates, setRates] = useState<ShippingRate[]>([]);
-  const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null);
-  const [codSelected, setCodSelected] = useState(false);
 
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -98,9 +87,7 @@ export default function CartAndCheckout({
 
   const tax = 0;
   const subtotal = selectedItems.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
-  const shippingFee = selectedRate ? selectedRate.cost : 0;
-  const codFee = codSelected && selectedRate?.codAvailable ? (selectedRate.codCharge ?? 0) : 0;
-  const total = Math.round((subtotal + shippingFee + codFee) * 100) / 100;
+  const total = Math.round(subtotal * 100) / 100;
 
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -141,7 +128,7 @@ export default function CartAndCheckout({
   const handleDeselectAll = () => setSelectedIds([]);
 
   const validateShipping = () => {
-    return Boolean(customerName.trim() && email.trim() && address.trim() && city.trim() && zipCode.trim() && originPincode.trim());
+    return Boolean(customerName.trim() && email.trim() && address.trim() && city.trim() && zipCode.trim());
   };
 
   const handleNextStep = () => {
@@ -156,64 +143,14 @@ export default function CartAndCheckout({
         alert('Please fill in all required shipping fields.');
         return;
       }
-      if (ratesLoading) {
-        alert('Calculating shipping rates, please wait...');
-        return;
-      }
-      if (!selectedRate) {
-        alert('A shipping option is required to continue. Please check the postal code and try again.');
-        return;
-      }
       onNavigate('order-summary');
     } else if (step === 'summary') {
       onNavigate('checkout');
     }
   };
 
-  // Fetch live shipping rates for current zipCode and selected items
-  const fetchRates = async (pincode: string) => {
-    if (!pincode || pincode.trim().length < 4 || selectedItems.length === 0) return;
-    try {
-      setRatesLoading(true);
-      setRatesError(null);
-      const resp = await getLiveShippingRates(pincode, selectedItems, originPincode);
-      if (resp.error) {
-        setRates([]);
-        setSelectedRate(null);
-        setRatesError(resp.error);
-      } else {
-        setRates(resp.rates || []);
-        const cheapest = pickCheapestRate(resp.rates || []);
-        setSelectedRate(cheapest);
-        if (!cheapest) {
-          setCodSelected(false);
-        }
-      }
-    } catch (err: any) {
-      setRates([]);
-      setSelectedRate(null);
-      setRatesError(err.message || 'Failed to fetch shipping rates');
-    } finally {
-      setRatesLoading(false);
-    }
-  };
-
-  // Trigger fetching rates when zipCode changes (pincode length 6 typical)
-  useEffect(() => {
-    if (step === 'shipping' && zipCode && zipCode.trim().length >= 6 && originPincode.trim().length >= 4) {
-      fetchRates(zipCode.trim());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zipCode, originPincode, step, JSON.stringify(selectedItems)]);
-
-  useEffect(() => {
-    if (!selectedRate?.codAvailable) {
-      setCodSelected(false);
-    }
-  }, [selectedRate]);
-
   const simulatePayment = () => {
-    if (!codSelected && paymentMethod === 'card' && (!cardNumber || !cardExpiry || !cardCvv || !cardHolder)) {
+    if (paymentMethod === 'card' && (!cardNumber || !cardExpiry || !cardCvv || !cardHolder)) {
       alert('Please fill in card credentials to authorize.');
       return;
     }
@@ -224,7 +161,7 @@ export default function CartAndCheckout({
       'Validating selected items and shipping details...',
       'Processing escrow authorization with ShopeValley vault...',
       'Finalizing gateway confirmation and settlement...',
-      'Order is being registered in the delivery network...'
+      'Order is being registered...'
     ];
 
     let currentMsgIdx = 0;
@@ -243,11 +180,10 @@ export default function CartAndCheckout({
             productId: item.productId,
             name: item.product.name,
             price: item.unitPrice,
-            quantity: item.quantity,
-            vendorId: item.product.vendorId
+            quantity: item.quantity
           })),
           subtotal: Math.round(subtotal * 100) / 100,
-          shipping: shippingFee,
+          shipping: 0,
           tax,
           total,
           customerName,
@@ -256,16 +192,17 @@ export default function CartAndCheckout({
           city,
           zipCode,
           phone,
-          status: 'pending',
-          paymentMethod: codSelected ? 'Cash on Delivery' : paymentMethod === 'card' ? 'Card Payment' : 'ShopeValley Wallet',
-          codFee,
+          status: 'accepted',
+          paymentMethod: paymentMethod === 'card' ? 'Card Payment' : 'ShopeValley Wallet',
           createdAt: new Date().toISOString(),
-          estimatedDelivery: selectedRate?.estimated_delivery_date || (selectedRate?.estimated_days ? `${selectedRate?.estimated_days} day(s)` : 'Estimate not available'),
+          estimatedDelivery: '7-9 business days',
           trackingSteps: [
-            { status: 'Order Received', description: 'Order successfully captured and verified.', time: 'Just now', done: true },
-            { status: 'Preparing Shipment', description: 'Artisans are gathering your selected items for dispatch.', time: 'Within hours', done: false },
-            { status: 'Out for Delivery', description: 'Local courier will pick up your package soon.', time: 'Today', done: false },
-            { status: 'Delivered', description: 'Expected delivery to your address shortly.', time: 'Estimated arrival', done: false }
+            { status: 'Order Accepted', description: 'Your order has been accepted and confirmed.', time: 'Just now', done: true },
+            { status: 'Order Packed', description: 'Your items are being packed for shipment.', time: 'Processing', done: false },
+            { status: 'Picked Up', description: 'Package picked up by courier.', time: 'Pending', done: false },
+            { status: 'In Transit', description: 'Your package is on its way.', time: 'Pending', done: false },
+            { status: 'Out for Delivery', description: 'Package is out for delivery to your address.', time: 'Pending', done: false },
+            { status: 'Delivered', description: 'Package delivered successfully.', time: 'Pending', done: false }
           ]
         };
 
@@ -295,14 +232,7 @@ export default function CartAndCheckout({
         </button>
         <ChevronRight className="w-4 h-4 text-slate-300" />
         <button
-          onClick={() => {
-            if (!validateShipping()) return;
-            if (!selectedRate) {
-              alert('Please select a shipping option before viewing order summary.');
-              return;
-            }
-            onNavigate('order-summary');
-          }}
+          onClick={() => { if (validateShipping()) onNavigate('order-summary'); }}
           disabled={!validateShipping()}
           className={`font-semibold flex items-center gap-1.5 pb-2 border-b-2 transition-all ${step === 'summary' ? 'border-slate-900 text-slate-950 font-extrabold' : 'border-transparent text-slate-400'}`}>
           <span className="bg-slate-100 w-5.5 h-5.5 rounded-full flex items-center justify-center text-[10px] font-bold">3</span>
@@ -384,10 +314,7 @@ export default function CartAndCheckout({
                           <div className="flex gap-4.5">
                             <img src={item.product.images[0]} alt={item.product.name} className="w-16 h-16 object-cover rounded-lg bg-slate-100 shrink-0 border border-slate-200" referrerPolicy="no-referrer" />
                             <div>
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <p className="text-[9px] font-bold text-amber-600 font-mono uppercase bg-amber-50 px-2 py-0.5 rounded w-fit">{item.product.vendorName}</p>
-                                {item.variantId !== 'STANDARD' && <span className="text-[9px] font-mono font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{item.variantId}</span>}
-                              </div>
+                              {item.variantId !== 'STANDARD' && <span className="text-[9px] font-mono font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{item.variantId}</span>}
                               <h4 onClick={() => onNavigate(`category/${item.product.category}/${item.product.slug}`)} className="font-bold text-slate-950 hover:text-amber-500 cursor-pointer text-xs sm:text-sm leading-tight mt-1">{item.product.name}</h4>
                               <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 font-mono mt-1">
                                 <span>Size: <span className="text-slate-800 font-extrabold">{item.selectedSize || item.size || 'Free Size'}</span></span>
@@ -421,7 +348,6 @@ export default function CartAndCheckout({
 
           {step === 'shipping' && (
             <div className="space-y-6" id="ch_step_shipping">
-              {/* Saved Addresses Section */}
               {savedAddresses.length > 0 && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                   <h3 className="font-extrabold text-slate-950 text-md tracking-tight border-b border-slate-100 pb-3 mb-4">Saved Addresses</h3>
@@ -464,27 +390,6 @@ export default function CartAndCheckout({
               )}
 
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                <h3 className="font-extrabold text-slate-950 text-md tracking-tight border-b border-slate-100 pb-3 mb-4">Shipping Origin</h3>
-                <p className="text-xs text-slate-500 mb-4">Enter the warehouse or pickup pincode that should be used as the shipping origin. This allows multiple warehouse origins instead of a single env-configured value.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-2">Origin Warehouse Pincode *</label>
-                    <input
-                      type="text"
-                      value={originPincode}
-                      onChange={(e) => setOriginPincode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="e.g. 110001"
-                      className="w-full text-xs sm:text-sm px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none bg-white font-sans"
-                    />
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mt-8">If you have multiple warehouses, use the pincode for the warehouse you want to ship from for this order.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Address Entry Form */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                 <h3 className="font-extrabold text-slate-950 text-md tracking-tight border-b border-slate-100 pb-3 mb-5">{selectedAddressId && !useNewAddress ? 'Edit Shipping Address' : 'Enter Shipping Address'}</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -518,6 +423,11 @@ export default function CartAndCheckout({
                     </div>
                   </div>
 
+                  <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                    <Calendar className="w-4 h-4" />
+                    <span><span className="font-bold">FREE Shipping</span> — Estimated delivery: 7-9 business days</span>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-2">Phone Number *</label>
                     <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 303-555-0192" className="w-full text-xs sm:text-sm px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none bg-white font-sans" />
@@ -536,29 +446,6 @@ export default function CartAndCheckout({
                   <textarea value={artisanNote} onChange={(e) => setArtisanNote(e.target.value)} rows={3} placeholder="e.g., Leave at front door, apartment number, gate code, etc." className="w-full text-xs sm:text-sm px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none bg-white font-sans resize-none" />
                 </div>
               </div>
-                {/* Shipping Rates Panel */}
-                <div className="mt-4">
-                  <h4 className="text-xs font-bold text-slate-800 mb-2">Shipping Options</h4>
-                  <div className="bg-white border border-slate-200 rounded-xl p-3 text-xs">
-                    {ratesLoading ? (
-                      <div className="flex items-center gap-2 text-slate-600">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Calculating shipping rates...
-                      </div>
-                    ) : ratesError ? (
-                      <div className="text-rose-600">Unable to calculate shipping: {ratesError}</div>
-                    ) : selectedRate ? (
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="text-slate-700 font-semibold">Cheapest available shipping</div>
-                          <div className="text-[11px] text-slate-500">Estimated delivery: {selectedRate.estimated_delivery_date || (selectedRate.estimated_days ? `${selectedRate.estimated_days} day(s)` : 'N/A')}</div>
-                        </div>
-                        <div className="text-slate-900 font-bold">{formatINR(selectedRate.cost)}</div>
-                      </div>
-                    ) : (
-                      <div className="text-slate-500">Enter a valid postal code to calculate shipping options.</div>
-                    )}
-                  </div>
-                </div>
             </div>
           )}
 
@@ -574,7 +461,7 @@ export default function CartAndCheckout({
                     <p className="text-slate-600">{address}</p>
                     <p className="text-slate-600">{city} • {zipCode}</p>
                     <p className="text-slate-600">{phone || 'No phone entered'}</p>
-                    <p className="text-slate-600 mt-3"><span className="font-bold">Delivery:</span> {selectedRate ? (selectedRate.estimated_delivery_date || (selectedRate.estimated_days ? `${selectedRate.estimated_days} day(s)` : 'N/A')) : 'Estimate not available'}</p>
+                    <p className="text-slate-600 mt-3"><span className="font-bold">Delivery:</span> Estimated 7-9 business days</p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
@@ -594,22 +481,7 @@ export default function CartAndCheckout({
                 </div>
                 <div className="mt-6 border-t border-slate-100 pt-4 text-xs sm:text-sm">
                   <div className="flex justify-between mb-2"><span className="text-slate-500">Subtotal</span><span className="font-semibold text-slate-900">{formatINR(subtotal)}</span></div>
-                  <div className="flex justify-between mb-2"><span className="text-slate-500">Shipping</span><span className="font-semibold text-slate-900">{formatINR(shippingFee)}</span></div>
-                  {selectedRate?.codAvailable && (
-                    <div className="flex justify-between mb-2"><span className="text-slate-500">COD Charge</span><span className="font-semibold text-slate-900">{formatINR(codFee)}</span></div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setCodSelected((prev) => !prev)}
-                    className={`w-full mt-4 py-3 text-xs font-bold rounded-xl border transition-all ${selectedRate?.codAvailable ? 'bg-slate-950 text-white border-slate-950 hover:bg-slate-800' : 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'}`}
-                    disabled={!selectedRate?.codAvailable}
-                  >
-                    {selectedRate?.codAvailable
-                      ? codSelected
-                        ? `COD selected +${formatINR(selectedRate.codCharge ?? 0)}`
-                        : `Pay Cash on Delivery ${selectedRate.codCharge ? `(+${formatINR(selectedRate.codCharge)})` : ''}`
-                      : 'Cash on Delivery not available'}
-                  </button>
+                  <div className="flex justify-between mb-2"><span className="text-slate-500">Shipping</span><span className="font-semibold text-emerald-600">FREE</span></div>
                   <div className="flex justify-between pt-3 border-t border-slate-200 text-sm font-bold"><span>Total</span><span>{formatINR(total)}</span></div>
                 </div>
               </div>
@@ -621,90 +493,81 @@ export default function CartAndCheckout({
               {paymentStatus === 'processing' ? (
                 <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-lg animate-pulse">
                   <div className="inline-flex items-center justify-center text-amber-500 mb-6 relative">
-                    <Loader2 className="w-16 h-16 animate-spin duration-1000" />
-                    <CreditCard className="w-6 h-6 absolute text-slate-950" />
+                    <CreditCard className="w-12 h-12 text-slate-950" />
                   </div>
                   <h3 className="font-extrabold text-slate-950 text-lg uppercase">Processing Secure Payment</h3>
                   <div className="max-w-sm mx-auto mt-3">
                     <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 font-mono text-[11px] text-amber-900 leading-normal text-left">{paymentStatusMessage}</div>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-mono mt-8">Do not reload this page while we finish the payment simulation.</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-8">Do not reload this page while we finish the payment.</p>
                 </div>
               ) : (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-left">
                   <h3 className="font-extrabold text-slate-950 text-md tracking-tight border-b border-slate-100 pb-3 mb-5">Payment Gateway</h3>
-                  {codSelected ? (
-                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
-                      <p className="font-bold">Cash on Delivery selected</p>
-                      <p className="mt-2">COD charge {formatINR(codFee)} has been added to your order.</p>
-                      <p className="mt-2 text-[11px] text-amber-800">Total amount due on delivery: {formatINR(total)}</p>
+                  <div className="space-y-4">
+                    <div className="flex gap-4 mb-6">
+                      <button onClick={() => setPaymentMethod('card')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${paymentMethod === 'card' ? 'bg-slate-950 border-slate-950 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                        <CreditCard className="w-4 h-4" /> Card
+                      </button>
+                      <button onClick={() => setPaymentMethod('wallet')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${paymentMethod === 'wallet' ? 'bg-slate-950 border-slate-950 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Wallet
+                      </button>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex gap-4 mb-6">
-                        <button onClick={() => setPaymentMethod('card')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${paymentMethod === 'card' ? 'bg-slate-950 border-slate-950 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                          <CreditCard className="w-4 h-4" /> Card
-                        </button>
-                        <button onClick={() => setPaymentMethod('wallet')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${paymentMethod === 'wallet' ? 'bg-slate-950 border-slate-950 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Wallet
-                        </button>
-                      </div>
-                      {paymentMethod === 'card' ? (
-                        <div className="space-y-4">
-                          <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 font-mono flex flex-col justify-between h-44 relative overflow-hidden">
-                            <div className="absolute right-0 bottom-0 p-12 bg-white/5 rounded-tl-full pointer-events-none" />
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <span className="text-[10px] text-slate-400 font-sans">SECURE PAYMENT</span>
-                                <h4 className="text-[11px] font-bold tracking-widest uppercase font-sans">SHOPEVALLEY VAULT</h4>
-                              </div>
-                              <span className="text-sm font-semibold italic text-slate-300">VISA</span>
+                    {paymentMethod === 'card' ? (
+                      <div className="space-y-4">
+                        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 font-mono flex flex-col justify-between h-44 relative overflow-hidden">
+                          <div className="absolute right-0 bottom-0 p-12 bg-white/5 rounded-tl-full pointer-events-none" />
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <span className="text-[10px] text-slate-400 font-sans">SECURE PAYMENT</span>
+                              <h4 className="text-[11px] font-bold tracking-widest uppercase font-sans">SHOPEVALLEY VAULT</h4>
                             </div>
-                            <div className="text-md sm:text-lg tracking-widest text-center my-2 font-bold select-all">{cardNumber || '•••• •••• •••• ••••'}</div>
-                            <div className="flex justify-between items-end text-[10px]">
-                              <div>
-                                <p className="text-[9px] text-slate-400 font-sans uppercase">Holder</p>
-                                <p className="font-bold tracking-wide truncate max-w-[130px]">{cardHolder || 'CARDHOLDER NAME'}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-[9px] text-slate-400 font-sans uppercase">Expiry</p>
-                                <p className="font-bold">{cardExpiry || 'MM / YY'}</p>
-                              </div>
+                            <span className="text-sm font-semibold italic text-slate-300">VISA</span>
+                          </div>
+                          <div className="text-md sm:text-lg tracking-widest text-center my-2 font-bold select-all">{cardNumber || '•••• •••• •••• ••••'}</div>
+                          <div className="flex justify-between items-end text-[10px]">
+                            <div>
+                              <p className="text-[9px] text-slate-400 font-sans uppercase">Holder</p>
+                              <p className="font-bold tracking-wide truncate max-w-[130px]">{cardHolder || 'CARDHOLDER NAME'}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[9px] text-slate-400 font-sans uppercase">Expiry</p>
+                              <p className="font-bold">{cardExpiry || 'MM / YY'}</p>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs font-sans">
-                            <div className="sm:col-span-2">
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Card Holder Name</label>
-                              <input type="text" value={cardHolder} onChange={(e) => setCardHolder(e.target.value.toUpperCase())} placeholder="e.g. JOHN DOE" className="w-full text-xs sm:text-sm px-3.5 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white uppercase font-mono" />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs font-sans">
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Card Holder Name</label>
+                            <input type="text" value={cardHolder} onChange={(e) => setCardHolder(e.target.value.toUpperCase())} placeholder="e.g. JOHN DOE" className="w-full text-xs sm:text-sm px-3.5 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white uppercase font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Card Number</label>
+                            <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4000 1234 5678 9010" maxLength={19} className="w-full text-xs sm:text-sm px-3.5 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white font-mono" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Expiry</label>
+                              <input type="text" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} placeholder="MM/YY" maxLength={5} className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white text-center font-mono" />
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Card Number</label>
-                              <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4000 1234 5678 9010" maxLength={19} className="w-full text-xs sm:text-sm px-3.5 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white font-mono" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">Expiry</label>
-                                <input type="text" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} placeholder="MM/YY" maxLength={5} className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white text-center font-mono" />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">CVV</label>
-                                <input type="password" value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ''))} placeholder="•••" maxLength={3} className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white text-center font-mono" />
-                              </div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">CVV</label>
+                              <input type="password" value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ''))} placeholder="•••" maxLength={3} className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-950 focus:outline-none bg-white text-center font-mono" />
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl text-left space-y-2.5 text-xs">
-                          <p className="font-bold text-emerald-800">Instant Wallet Payment</p>
-                          <p className="text-emerald-700/80">Use the ShopeValley wallet to complete checkout without card details.</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl text-left space-y-2.5 text-xs">
+                        <p className="font-bold text-emerald-800">Instant Wallet Payment</p>
+                        <p className="text-emerald-700/80">Use the ShopeValley wallet to complete checkout without card details.</p>
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-8 pt-5 border-t border-slate-100">
                     <button onClick={simulatePayment} className="w-full bg-[#10b981] hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider font-sans">
                       <ShieldCheck className="w-5 h-5 text-white" />
-                      {codSelected ? 'Confirm Order' : `Pay ${formatINR(total)}`}
+                      Pay {formatINR(total)}
                     </button>
                     <p className="text-[10px] text-slate-400 text-center mt-2.5 font-mono">Your payment is encrypted and routed through the ShopeValley gateway.</p>
                   </div>
@@ -721,7 +584,7 @@ export default function CartAndCheckout({
               <div className="flex justify-between"><span className="text-slate-400">Selected Products</span><span className="font-extrabold text-slate-100">{formatINR(subtotal)}</span></div>
               {(step === 'summary' || step === 'payment') && (
                 <>
-                  <div className="flex justify-between"><span className="text-slate-400">Shipping</span><span className="font-semibold text-slate-100">{formatINR(shippingFee)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Shipping</span><span className="font-semibold text-emerald-400">FREE</span></div>
                   <div className="border-t border-slate-800 pt-3.5 mt-3.5 flex justify-between text-sm"><span className="font-extrabold text-amber-400 tracking-wide">Grand Total</span><span className="font-black text-lg text-white font-sans">{formatINR(total)}</span></div>
                 </>
               )}

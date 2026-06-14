@@ -2,7 +2,7 @@ import React, { createContext, useContext } from 'react';
 
 export interface AuthUser {
   id: string;
-  role: 'ADMIN' | 'BUYER' | 'SELLER';
+  role: 'ADMIN' | 'BUYER';
 }
 
 interface AuthContextValue {

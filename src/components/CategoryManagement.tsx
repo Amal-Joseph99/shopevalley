@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   ChevronDown
 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 export interface CategoryItem {
   id: string;
@@ -51,10 +52,62 @@ export interface ProductTypeItem {
 export default function CategoryManagement() {
   // --- 1. CORE STATE MANAGEMENT ---
   const [categories, setCategories] = useState<CategoryItem[]>([]);
-
   const [subCategories, setSubCategories] = useState<SubCategoryItem[]>([]);
-
   const [productTypes, setProductTypes] = useState<ProductTypeItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch all category data from Supabase on mount
+  useEffect(() => {
+    const fetchAll = async () => {
+      setIsLoading(true);
+      try {
+        const [catsRes, subsRes, ptsRes] = await Promise.all([
+          supabase.from('categories').select('*').order('name'),
+          supabase.from('sub_categories').select('*, categories(name)').order('name'),
+          supabase.from('product_types').select('*, categories(name), sub_categories(name)').order('name')
+        ]);
+
+        if (catsRes.data) {
+          setCategories(catsRes.data.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+            status: r.status
+          })));
+        }
+
+        if (subsRes.data) {
+          setSubCategories(subsRes.data.map((r: any) => ({
+            id: r.id,
+            categoryId: r.category_id,
+            categoryName: r.categories?.name || '',
+            name: r.name,
+            createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+            status: r.status
+          })));
+        }
+
+        if (ptsRes.data) {
+          setProductTypes(ptsRes.data.map((r: any) => ({
+            id: r.id,
+            categoryId: r.category_id,
+            categoryName: r.categories?.name || '',
+            subCategoryId: r.sub_category_id,
+            subCategoryName: r.sub_categories?.name || '',
+            name: r.name,
+            hsnCode: r.hsn_code || '',
+            createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+            status: r.status
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
 
 
 
@@ -325,7 +378,7 @@ export default function CategoryManagement() {
 
 
   // --- 12. SUBMISSIONS & SAVE DISPATCH HANDLERS ---
-  const handleSaveCategory = (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
     if (!catForm.name.trim()) {
@@ -343,25 +396,43 @@ export default function CategoryManagement() {
         return;
       }
 
-      const newId = 'cat_' + Date.now();
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({ name: catForm.name.trim(), status: catForm.status })
+        .select('*')
+        .single();
+
+      if (error) {
+        setValidationErrors({ name: error.message });
+        return;
+      }
+
       const newCat: CategoryItem = {
-        id: newId,
-        name: catForm.name.trim(),
-        createdAt: new Date().toISOString().split('T')[0],
-        status: catForm.status
+        id: data.id,
+        name: data.name,
+        createdAt: new Date(data.created_at).toISOString().split('T')[0],
+        status: data.status
       };
       setCategories(prev => [...prev, newCat]);
     } else {
-      const editId = categoryModal.itemId;
-      // edit duplication check
+      const editId = categoryModal.itemId!;
       const isDuplicate = categories.some(c => c.id !== editId && c.name.toLowerCase() === catForm.name.trim().toLowerCase());
       if (isDuplicate) {
         setValidationErrors({ name: 'Another category already has this name' });
         return;
       }
 
+      const { error } = await supabase
+        .from('categories')
+        .update({ name: catForm.name.trim(), status: catForm.status, updated_at: new Date().toISOString() })
+        .eq('id', editId);
+
+      if (error) {
+        setValidationErrors({ name: error.message });
+        return;
+      }
+
       setCategories(prev => prev.map(c => c.id === editId ? { ...c, name: catForm.name.trim(), status: catForm.status } : c));
-      // update category names in subcategories and productTypes
       setSubCategories(prev => prev.map(sub => sub.categoryId === editId ? { ...sub, categoryName: catForm.name.trim() } : sub));
       setProductTypes(prev => prev.map(pt => pt.categoryId === editId ? { ...pt, categoryName: catForm.name.trim() } : pt));
     }
@@ -369,7 +440,7 @@ export default function CategoryManagement() {
     setCategoryModal({ isOpen: false, mode: 'add' });
   };
 
-  const handleSaveSubCategory = (e: React.FormEvent) => {
+  const handleSaveSubCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
     if (!subForm.categoryId) {
@@ -396,18 +467,28 @@ export default function CategoryManagement() {
         return;
       }
 
-      const newId = 'sub_' + Date.now();
+      const { data, error } = await supabase
+        .from('sub_categories')
+        .insert({ category_id: subForm.categoryId, name: subForm.name.trim(), status: subForm.status })
+        .select('*')
+        .single();
+
+      if (error) {
+        setValidationErrors({ name: error.message });
+        return;
+      }
+
       const newSub: SubCategoryItem = {
-        id: newId,
-        categoryId: subForm.categoryId,
+        id: data.id,
+        categoryId: data.category_id,
         categoryName,
-        name: subForm.name.trim(),
-        createdAt: new Date().toISOString().split('T')[0],
-        status: subForm.status
+        name: data.name,
+        createdAt: new Date(data.created_at).toISOString().split('T')[0],
+        status: data.status
       };
       setSubCategories(prev => [...prev, newSub]);
     } else {
-      const editId = subCategoryModal.itemId;
+      const editId = subCategoryModal.itemId!;
       const isDuplicate = subCategories.some(s => 
         s.id !== editId &&
         s.categoryId === subForm.categoryId && 
@@ -415,6 +496,16 @@ export default function CategoryManagement() {
       );
       if (isDuplicate) {
         setValidationErrors({ name: 'Another subcategory already has this name under the selected category' });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('sub_categories')
+        .update({ category_id: subForm.categoryId, name: subForm.name.trim(), status: subForm.status, updated_at: new Date().toISOString() })
+        .eq('id', editId);
+
+      if (error) {
+        setValidationErrors({ name: error.message });
         return;
       }
 
@@ -426,7 +517,6 @@ export default function CategoryManagement() {
         status: subForm.status
       } : s));
 
-      // update in product types
       setProductTypes(prev => prev.map(pt => pt.subCategoryId === editId ? { 
         ...pt, 
         categoryId: subForm.categoryId,
@@ -438,7 +528,7 @@ export default function CategoryManagement() {
     setSubCategoryModal({ isOpen: false, mode: 'add' });
   };
 
-  const handleSaveProductType = (e: React.FormEvent) => {
+  const handleSaveProductType = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
     
@@ -452,7 +542,6 @@ export default function CategoryManagement() {
       errors.name = 'Product Type Name is required';
     }
     
-    // HSN Code validations
     const cleanHsn = ptForm.hsnCode.trim();
     if (!cleanHsn) {
       errors.hsnCode = 'HSN Code is required';
@@ -482,21 +571,37 @@ export default function CategoryManagement() {
         return;
       }
 
-      const newId = 'pt_' + Date.now();
+      const { data, error } = await supabase
+        .from('product_types')
+        .insert({
+          category_id: ptForm.categoryId,
+          sub_category_id: ptForm.subCategoryId,
+          name: ptForm.name.trim(),
+          hsn_code: cleanHsn,
+          status: ptForm.status
+        })
+        .select('*')
+        .single();
+
+      if (error) {
+        setValidationErrors({ name: error.message });
+        return;
+      }
+
       const newPt: ProductTypeItem = {
-        id: newId,
-        categoryId: ptForm.categoryId,
+        id: data.id,
+        categoryId: data.category_id,
         categoryName,
-        subCategoryId: ptForm.subCategoryId,
+        subCategoryId: data.sub_category_id,
         subCategoryName,
-        name: ptForm.name.trim(),
-        hsnCode: cleanHsn,
-        createdAt: new Date().toISOString().split('T')[0],
-        status: ptForm.status
+        name: data.name,
+        hsnCode: data.hsn_code,
+        createdAt: new Date(data.created_at).toISOString().split('T')[0],
+        status: data.status
       };
       setProductTypes(prev => [...prev, newPt]);
     } else {
-      const editId = productTypeModal.itemId;
+      const editId = productTypeModal.itemId!;
       const isDuplicate = productTypes.some(pt => 
         pt.id !== editId &&
         pt.subCategoryId === ptForm.subCategoryId && 
@@ -504,6 +609,23 @@ export default function CategoryManagement() {
       );
       if (isDuplicate) {
         setValidationErrors({ name: 'Another product type with this name already exists under this subcategory' });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('product_types')
+        .update({
+          category_id: ptForm.categoryId,
+          sub_category_id: ptForm.subCategoryId,
+          name: ptForm.name.trim(),
+          hsn_code: cleanHsn,
+          status: ptForm.status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editId);
+
+      if (error) {
+        setValidationErrors({ name: error.message });
         return;
       }
 
@@ -533,30 +655,37 @@ export default function CategoryManagement() {
     });
   };
 
-  const executeConfirmedDelete = () => {
+  const executeConfirmedDelete = async () => {
     if (!deleteConfirmation) return;
     const { type, id } = deleteConfirmation;
 
     if (type === 'category') {
-      // delete category
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (error) { alert(`Delete failed: ${error.message}`); setDeleteConfirmation(null); return; }
       setCategories(prev => prev.filter(c => c.id !== id));
-      // Cascade-delete / deactivate child subcategories? Or remove reference. Let's keep them and mark inactive/orphaned, or cascade.
-      // cascade is generally expected so tables don't crash
       setSubCategories(prev => prev.filter(sub => sub.categoryId !== id));
       setProductTypes(prev => prev.filter(pt => pt.categoryId !== id));
     } else if (type === 'subcategory') {
+      const { error } = await supabase.from('sub_categories').delete().eq('id', id);
+      if (error) { alert(`Delete failed: ${error.message}`); setDeleteConfirmation(null); return; }
       setSubCategories(prev => prev.filter(s => s.id !== id));
       setProductTypes(prev => prev.filter(pt => pt.subCategoryId !== id));
     } else if (type === 'producttype') {
+      const { error } = await supabase.from('product_types').delete().eq('id', id);
+      if (error) { alert(`Delete failed: ${error.message}`); setDeleteConfirmation(null); return; }
       setProductTypes(prev => prev.filter(pt => pt.id !== id));
     }
 
     setDeleteConfirmation(null);
   };
 
-  // Switch Active Status pill shortcut directly in row
-  const toggleItemRowStatus = (type: 'category' | 'subcategory' | 'producttype', id: string, current: 'Active' | 'Inactive') => {
+  const toggleItemRowStatus = async (type: 'category' | 'subcategory' | 'producttype', id: string, current: 'Active' | 'Inactive') => {
     const nextStatus = current === 'Active' ? 'Inactive' : 'Active';
+    const table = type === 'category' ? 'categories' : type === 'subcategory' ? 'sub_categories' : 'product_types';
+    
+    const { error } = await supabase.from(table).update({ status: nextStatus, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) { alert(`Status update failed: ${error.message}`); return; }
+
     if (type === 'category') {
       setCategories(prev => prev.map(c => c.id === id ? { ...c, status: nextStatus } : c));
     } else if (type === 'subcategory') {
@@ -570,6 +699,17 @@ export default function CategoryManagement() {
   return (
     <div className="space-y-6" id="category_management_root_workspace">
       
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center space-y-3">
+            <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto"></div>
+            <p className="text-xs text-slate-500 font-medium">Loading categories...</p>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && (
+      <>
       {/* 1. UPPER SAAS PAGE HEADER */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-5" id="categories_dashboard_header">
         <div className="text-left space-y-1">
@@ -1226,6 +1366,8 @@ export default function CategoryManagement() {
 
       </div>
 
+      </>
+      )}
 
       {/* ==================== MODAL Dialog: CONFIRM DELETION ==================== */}
       {deleteConfirmation && deleteConfirmation.isOpen && (

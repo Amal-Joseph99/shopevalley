@@ -17,8 +17,8 @@ import AddressesPage from './components/AddressesPage';
 import MyOrdersPage from './components/MyOrdersPage';
 import NotificationsPage from './components/NotificationsPage';
 import { supabase, getCurrentUserProfile } from './lib/supabaseClient';
-import { PRODUCTS, VENDORS } from './data';
-import { Product, Vendor, CartItem, Order, LoggedUser, ProductVariant } from './types';
+import { PRODUCTS } from './data';
+import { Product, CartItem, Order, LoggedUser, ProductVariant } from './types';
 import { 
   Heart, 
   ShoppingCart, 
@@ -29,8 +29,6 @@ import {
   Star, 
   MessageSquare,
   ChevronLeft,
-  Briefcase,
-  Store,
   Info,
   ExternalLink,
   AlertCircle,
@@ -45,8 +43,6 @@ export default function App() {
   // Core reactive datasets
   const [products, setProducts] = useState<Product[]>([]);
 
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-
   // User States
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -58,7 +54,6 @@ export default function App() {
 
   // Client-side quick filter parameters
   const [searchQuery, setSearchQuery] = useState('');
-  const [locationDistance, setLocationDistance] = useState<number>(50); // Default to check within 50 miles radius
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
 
   // User Authentication State (managed by Supabase)
@@ -88,10 +83,10 @@ export default function App() {
   };
 
   const isGuestAllowedPath = (path: string) => {
-    if (!path || path === '/' || path === 'login' || path === 'register' || path === 'verify-otp' || path === 'wishlist') {
+    if (!path || path === '/' || path === 'login' || path === 'register' || path === 'verify-otp' || path === 'forgot-password' || path === 'reset-password' || path === 'wishlist') {
       return true;
     }
-    if (path.startsWith('category/') || path.startsWith('section/') || path.startsWith('vendor/')) {
+    if (path.startsWith('category/') || path.startsWith('section/')) {
       return true;
     }
     // Legal, About, Contact pages are accessible by guests
@@ -217,6 +212,8 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        navigate('reset-password');
       } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         if (session?.user) {
           const profile = await getCurrentUserProfile();
@@ -250,8 +247,6 @@ export default function App() {
           category: p.category || '',
           subCategory: p.sub_category || '',
           images: Array.isArray(p.images) ? p.images : [],
-          vendorId: p.vendor_id || '',
-          vendorName: p.vendor_name || '',
           rating: Number(p.rating) || 0,
           reviewCount: p.review_count || 0,
           stock: p.stock || 0,
@@ -421,7 +416,7 @@ export default function App() {
     });
   };
 
-  // Vendor operations
+  // Product operations
   const handleAddProduct = (newP: Product) => {
     setProducts((prev) => [newP, ...prev]);
   };
@@ -439,32 +434,19 @@ export default function App() {
   // Filter application algorithms
   const getFilteredProducts = () => {
     return products.filter(p => {
-      // 1. Search Query text check
       const query = searchQuery.trim().toLowerCase();
       const matchesSearch = query === '' || 
         p.name.toLowerCase().includes(query) || 
         p.description.toLowerCase().includes(query) || 
-        p.tags.some(t => t.toLowerCase().includes(query)) ||
-        p.vendorName.toLowerCase().includes(query);
+        p.tags.some(t => t.toLowerCase().includes(query));
 
-      // 2. Category selection check
       const matchesCategory = selectedCategoryFilter === 'All' || p.category === selectedCategoryFilter;
 
-      // 3. Distance check matching appropriate vendor distance from Denver
-      const vendor = vendors.find(v => v.id === p.vendorId);
-      const matchesDistance = !vendor || vendor.distance <= locationDistance;
-
-      return matchesSearch && matchesCategory && matchesDistance;
+      return matchesSearch && matchesCategory;
     });
   };
 
   const allFilteredProducts = getFilteredProducts();
-
-  // Multi-vendor custom bio highlight
-  const activeArtisanHighlights = vendors.filter(v => 
-    v.distance <= locationDistance && 
-    (selectedCategoryFilter === 'All' || v.category === selectedCategoryFilter)
-  );
 
   return (
     <div className="min-h-screen bg-[#fdfdfd] text-slate-900 flex flex-col justify-between" id="sv_app_root">
@@ -480,8 +462,6 @@ export default function App() {
           onNavigate={handleProtectedNavigate}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          locationDistance={locationDistance}
-          setLocationDistance={setLocationDistance}
           selectedCategoryFilter={selectedCategoryFilter}
           setSelectedCategoryFilter={setSelectedCategoryFilter}
           currentUser={currentUser}
@@ -549,7 +529,7 @@ export default function App() {
                 </div>
 
                 <div className="text-slate-400 text-xs font-mono">
-                  {matchingProducts.length} items verified within {locationDistance} miles.
+                  {matchingProducts.length} items available
                 </div>
               </div>
 
@@ -558,12 +538,12 @@ export default function App() {
               <div className="space-y-8">
                 {paginatedProducts.length === 0 ? (
                   <div className="text-center py-20 border border-slate-200 rounded-2xl bg-white p-6">
-                    <p className="text-slate-500 font-mono text-xs">No active {catName} pieces match your distance radius filter ({locationDistance} mi).</p>
+                    <p className="text-slate-500 font-mono text-xs">No products found in {catName}.</p>
                     <button 
-                      onClick={() => setLocationDistance(1000)}
+                      onClick={() => handleProtectedNavigate('')}
                       className="mt-4 bg-slate-950 text-white text-xs font-bold py-2 px-6 rounded-lg"
                     >
-                      Extend Distance Filter
+                      Browse All Products
                     </button>
                   </div>
                 ) : (
@@ -799,10 +779,11 @@ export default function App() {
 
 
         {/* VIEW 9: REGISTERED BUYERS AND ADMIN AUTHENTICATION WORKSPACE */}
-        {route.path === 'login' || route.path === 'register' || route.path === 'verify-otp' ? (
+        {route.path === 'login' || route.path === 'register' || route.path === 'verify-otp' || route.path === 'forgot-password' || route.path === 'reset-password' ? (
           <LoginScreen 
             onNavigate={handleProtectedNavigate}
             onLoginSuccess={(user) => setCurrentUser(user)}
+            initialView={route.path === 'forgot-password' ? 'forgot-password' : route.path === 'reset-password' ? 'reset-password' : route.path === 'register' ? 'register' : route.path === 'verify-otp' ? 'otp' : 'login'}
           />
         ) : null}
 
@@ -820,98 +801,6 @@ export default function App() {
             onUpdateOrders={setOrders}
           />
         ) : null}
-
-        {/* VIEW 7: ARTISAN STORE HIGHLIGHT FOR A SPECIFIC MERCHANT */}
-        {route.path === 'vendor' && route.vendorId ? (() => {
-          const vendor = vendors.find(v => v.id === route.vendorId);
-          if (!vendor) return null;
-
-          const vendorProducts = products.filter(p => p.vendorId === vendor.id);
-
-          return (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8" id="vendor_shop_profile_view">
-              {/* Back breadcrumb */}
-              <button 
-                onClick={() => navigate('')}
-                className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-950 font-bold mb-6 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Return to Homepage
-              </button>
-
-              {/* Cover Header and Avatar */}
-              <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm mb-8">
-                <div className="h-44 sm:h-56 relative bg-slate-100">
-                  <img src={vendor.coverImage} alt="" className="w-full h-full object-cover select-none" referrerPolicy="no-referrer" />
-                  <div className="absolute inset-0 bg-black/35" />
-                </div>
-
-                <div className="p-6 relative -mt-10 sm:-mt-14 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b border-slate-100">
-                  <div className="flex items-end gap-3.5">
-                    <img 
-                      src={vendor.logo} 
-                      alt={vendor.name} 
-                      className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl object-cover shrink-0 border-4 border-white bg-white shadow-md z-15" 
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="bg-white/80 backdrop-blur-sm sm:bg-transparent rounded p-1">
-                      <h1 className="text-xl sm:text-2xl font-black text-slate-955 leading-none uppercase">{vendor.name}</h1>
-                      <span className="text-xs text-slate-505 font-medium font-sans flex items-center gap-1 mt-1">
-                        <MapPin className="w-3.5 h-3.5 text-amber-500" />
-                        Location: {vendor.location} ({vendor.distance} miles away)
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 w-full sm:w-auto pt-2.5">
-                    <div className="text-right text-xs">
-                      <p className="font-bold text-slate-800">{vendor.rating} ★ Rated</p>
-                      <p className="text-slate-400 font-mono mt-0.5">({vendor.reviewsCount} customer feeds)</p>
-                    </div>
-                    <button 
-                      onClick={() => alert(`Connecting securely with ${vendor.name} help host...`)}
-                      className="bg-slate-950 text-white font-bold text-xs py-2 px-4 rounded-xl cursor-pointer"
-                    >
-                      Store Chat Support
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-slate-50/50">
-                  <h3 className="font-bold text-xs uppercase text-slate-400 tracking-wider">Workshop Bio</h3>
-                  <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed max-w-4xl font-normal font-sans">
-                    {vendor.description}
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-2 font-mono">Verified partner of ShopeValley since {vendor.joinDate}</p>
-                </div>
-              </div>
-
-              {/* Vendor catalog grid */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Briefcase className="w-5 h-5 text-slate-700" />
-                  <h3 className="font-extrabold text-base sm:text-lg uppercase text-slate-900">Products crafted by this vendor</h3>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-in fade-in">
-                  {vendorProducts.map((p) => {
-                    const isFav = wishlist.some(item => item.id === p.id);
-                    return (
-                      <ProductCard 
-                        key={p.id}
-                        product={p}
-                        isWishlisted={isFav}
-                        onToggleWishlist={handleToggleWishlist}
-                        onAddToCart={handleAddToCartWithAuth}
-                        onNavigate={handleProtectedNavigate}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          );
-        })() : null}
 
         {/* VIEW 10: SECTION WISE PAGES WITH FILTERED PRODUCTS */}
         {route.path === 'section' ? (() => {

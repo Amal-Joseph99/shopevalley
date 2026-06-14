@@ -4,7 +4,6 @@ export interface RouteState {
   path: string;
   categoryName?: string;
   productSlug?: string;
-  vendorId?: string;
   orderId?: string;
   page: number; // For category pagination
   searchQuery: string;
@@ -41,8 +40,6 @@ export function parseHash(hash: string): RouteState {
   } else if (segments[0] === 'section' && segments[1]) {
     routeState.path = 'section';
     routeState.categoryName = decodeURIComponent(segments[1]);
-  } else if (segments[0] === 'vendor' && segments[1]) {
-    routeState.vendorId = decodeURIComponent(segments[1]);
   } else if (segments[0] === 'track-order' && segments[1]) {
     routeState.orderId = decodeURIComponent(segments[1]);
   } else if (segments[0] === 'order-status' && segments[1]) {
@@ -64,6 +61,10 @@ export function parseHash(hash: string): RouteState {
     routeState.path = 'register';
   } else if (segments[0] === 'verify-otp') {
     routeState.path = 'verify-otp';
+  } else if (segments[0] === 'forgot-password') {
+    routeState.path = 'forgot-password';
+  } else if (segments[0] === 'reset-password') {
+    routeState.path = 'reset-password';
   } else if (segments[0] === 'admin') {
     routeState.path = 'admin';
   } else if (segments[0] === 'profile') {

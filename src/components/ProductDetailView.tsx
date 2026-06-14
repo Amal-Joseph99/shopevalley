@@ -218,7 +218,7 @@ export default function ProductDetailView({
           
           {/* Brand Name link */}
           <div className="text-[13px] font-semibold text-[#0066c0] hover:underline cursor-pointer">
-            {product.brand || product.vendorName || "Shopevalley"}
+            {product.brand || "ShopeValley"}
           </div>
 
           {/* Product Name Title of exact size */}
@@ -560,7 +560,7 @@ export default function ProductDetailView({
                 <div className="divide-y divide-slate-100 mt-1">
                   <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
                     <span className="font-bold text-slate-800">Brand</span>
-                    <span className="text-slate-600 font-semibold text-[#0066c0]">{product.brand || product.vendorName || "Shopevalley"}</span>
+                    <span className="text-slate-600 font-semibold text-[#0066c0]">{product.brand || "ShopeValley"}</span>
                   </div>
                   <div className="grid grid-cols-2 py-2 text-[11px] font-sans">
                     <span className="font-bold text-slate-800">SKU</span>

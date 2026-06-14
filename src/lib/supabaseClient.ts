@@ -293,25 +293,23 @@ export async function updateUserProfile(userId: string, updates: Partial<Profile
 
 export async function requestPasswordReset(email: string): Promise<AuthResponse> {
   try {
-    const otpResult = await sendOTPEmail(email.toLowerCase(), 'password_reset');
-    if (!otpResult.success) {
-      return { success: false, message: 'Failed to send reset OTP', error: 'SEND_OTP_FAILED' };
+    const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
+      redirectTo: `${window.location.origin}/#/reset-password`
+    });
+    if (error) {
+      return { success: false, message: error.message || 'Failed to send reset email', error: 'SEND_RESET_FAILED' };
     }
-    return { success: true, message: 'Password reset OTP sent to your email' };
+    return { success: true, message: 'Password reset link sent to your email' };
   } catch (err: any) {
     return { success: false, message: err.message || 'Request error', error: 'REQUEST_ERROR' };
   }
 }
 
-export async function resetPasswordWithOTP(email: string, otp: string, newPassword: string): Promise<AuthResponse> {
+export async function resetPasswordWithOTP(email: string, _otp: string, newPassword: string): Promise<AuthResponse> {
   try {
-    if (!await verifyOTP(email.toLowerCase(), otp, 'password_reset')) {
-      return { success: false, message: 'Invalid or expired OTP', error: 'INVALID_OTP' };
-    }
-
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
-      return { success: false, message: 'Failed to update password', error: error.message };
+      return { success: false, message: error.message || 'Failed to update password', error: error.code || 'UPDATE_FAILED' };
     }
 
     return { success: true, message: 'Password updated successfully' };

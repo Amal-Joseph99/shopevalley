@@ -1,19 +1,3 @@
-export interface Vendor {
-  id: string;
-  name: string;
-  slug: string;
-  logo: string;
-  coverImage: string;
-  description: string;
-  rating: number;
-  reviewsCount: number;
-  location: string;
-  distance: number; // in miles
-  category: string;
-  featured: boolean;
-  joinDate: string;
-}
-
 export interface Product {
   id: string;
   name: string;
@@ -25,8 +9,6 @@ export interface Product {
   category: string;
   subCategory?: string;
   images: string[];
-  vendorId: string;
-  vendorName: string;
   rating: number;
   reviewCount: number;
   stock: number;
@@ -107,7 +89,6 @@ export interface OrderItem {
   name: string;
   price: number;
   quantity: number;
-  vendorId: string;
 }
 
 export interface Order {
@@ -117,14 +98,13 @@ export interface Order {
   shipping: number;
   tax: number;
   total: number;
-  codFee?: number;
   customerName: string;
   email: string;
   address: string;
   city: string;
   zipCode: string;
   phone: string;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered';
+  status: 'accepted' | 'rejected' | 'packed' | 'picked_up' | 'in_transit' | 'out_for_delivery' | 'delivered';
   paymentMethod: string;
   createdAt: string;
   estimatedDelivery: string;

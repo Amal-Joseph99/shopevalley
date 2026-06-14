@@ -1,16 +1,14 @@
 import { supabase } from './supabaseClient';
 
 export interface FetchProductsOptions {
-  sellerId: string;
   limit?: number;
   offset?: number;
 }
 
-export async function fetchProducts({ sellerId, limit = 100, offset = 0 }: FetchProductsOptions) {
+export async function fetchProducts({ limit = 100, offset = 0 }: FetchProductsOptions = {}) {
   const { data, error } = await supabase
     .from('products')
     .select('*')
-    .eq('vendor_id', sellerId)
     .range(offset, offset + limit - 1);
 
   return {
@@ -49,10 +47,7 @@ export async function upsertProductDraftBasic(payload: any) {
         origin_country_id: payload.origin_country_id,
         origin_country: payload.origin_country,
         currency: payload.currency,
-        is_cod_available: payload.is_cod_available,
         item_condition: payload.item_condition,
-        vendor_id: payload.vendor_id,
-        vendor_name: payload.vendor_name,
         is_draft: true,
         resume_step: 'media',
         updated_at: new Date().toISOString(),
@@ -82,10 +77,7 @@ export async function upsertProductDraftBasic(payload: any) {
       mrp: payload.mrp,
       price: payload.price,
       stock: payload.stock,
-      is_cod_available: payload.is_cod_available,
       item_condition: payload.item_condition,
-      vendor_id: payload.vendor_id,
-      vendor_name: payload.vendor_name,
       approval_status: 'pending',
       is_active: false,
       is_draft: true,
@@ -237,7 +229,7 @@ export async function fetchReturnPolicy(productId: string) {
   return { data, error: error?.message || null };
 }
 
-export async function updateProductOfferRules(productId: string, payload: any[], sellerId: string) {
+export async function updateProductOfferRules(productId: string, payload: any[]) {
   const { error: deleteError } = await supabase
     .from('offer_rules')
     .delete()
@@ -254,7 +246,6 @@ export async function updateProductOfferRules(productId: string, payload: any[],
   const rows = payload.map((item) => ({
     ...item,
     product_id: productId,
-    seller_id: sellerId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }));
@@ -295,8 +286,8 @@ export async function generateNextSku() {
   return `SKU-${Date.now()}`;
 }
 
-export async function uploadProductImage(file: File, sellerId: string) {
-  const safeName = `${sellerId}/${Date.now()}-${file.name}`;
+export async function uploadProductImage(file: File) {
+  const safeName = `uploads/${Date.now()}-${file.name}`;
   try {
     const { error: uploadError } = await supabase
       .storage
@@ -318,8 +309,8 @@ export async function uploadProductImage(file: File, sellerId: string) {
   }
 }
 
-export async function uploadProductVideo(file: File, sellerId: string) {
-  const safeName = `${sellerId}/${Date.now()}-${file.name}`;
+export async function uploadProductVideo(file: File) {
+  const safeName = `uploads/${Date.now()}-${file.name}`;
   try {
     const { error: uploadError } = await supabase
       .storage
@@ -341,12 +332,7 @@ export async function uploadProductVideo(file: File, sellerId: string) {
   }
 }
 
-export async function deleteProduct(productId: string, sellerId?: string) {
-  const query = supabase.from('products').delete().eq('id', productId);
-  if (sellerId) {
-    query.eq('vendor_id', sellerId);
-  }
-
-  const { error } = await query;
+export async function deleteProduct(productId: string) {
+  const { error } = await supabase.from('products').delete().eq('id', productId);
   return { success: !error, error: error?.message || null };
 }

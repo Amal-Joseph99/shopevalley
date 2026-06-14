@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useHashRouter } from './CustomRouter';
 import CategoryManagement from './CategoryManagement';
+import ProductManagement from './ProductManagement';
 import { 
   BarChart3, 
   Users, 
@@ -38,7 +39,7 @@ interface AdminPanelProps {
   onAddProduct: (newP: Product) => void;
   onDeleteProduct: (prodId: string) => void;
   orders: Order[];
-  onUpdateOrderStatus?: (orderId: string, status: 'pending' | 'processing' | 'shipped' | 'delivered') => void;
+  onUpdateOrderStatus?: (orderId: string, status: 'accepted' | 'rejected' | 'packed' | 'picked_up' | 'in_transit' | 'out_for_delivery' | 'delivered') => void;
   onNavigate: (path: string) => void;
   currentUser: LoggedUser | null;
   onLogout: () => void;
@@ -78,8 +79,6 @@ export default function AdminPanel({
     category: String(row.category || ''),
     subCategory: row.sub_category ? String(row.sub_category) : row.subCategory ? String(row.subCategory) : undefined,
     images: Array.isArray(row.images) ? row.images : row.images ? [String(row.images)] : [],
-    vendorId: String(row.vendor_id || row.vendorId || ''),
-    vendorName: String(row.vendor_name || row.vendorName || ''),
     rating: Number(row.rating ?? 0),
     reviewCount: Number(row.review_count ?? row.reviewCount ?? 0),
     stock: Number(row.stock ?? 0),
@@ -192,7 +191,6 @@ export default function AdminPanel({
     description: '',
     imageUrl: '',
     stock: '',
-    vendorName: '',
     sku: 'SKU-' + Math.floor(Math.random() * 900000 + 100000)
   });
 
@@ -247,17 +245,15 @@ export default function AdminPanel({
       name: newProd.name,
       slug,
       id_key: newProd.sku,
-      description: newProd.description || 'Verified artisan build quality direct from local workshops.',
+      description: newProd.description || 'High quality product from our curated collection.',
       price: priceNum,
       original_price: origPriceNum,
       category: newProd.category,
       images: newProd.imageUrl ? [newProd.imageUrl] : [],
-      vendor_id: 'v2',
-      vendor_name: newProd.vendorName,
       rating: 4.8,
       review_count: 1,
       stock: parsedStock,
-      tags: [newProd.category.toLowerCase(), 'custom', 'handmade'],
+      tags: [newProd.category.toLowerCase(), 'custom'],
       sku: newProd.sku,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -289,7 +285,6 @@ export default function AdminPanel({
       description: '',
       imageUrl: '',
       stock: '50',
-      vendorName: 'Main Workshop Master',
       sku: 'SKU-' + Math.floor(Math.random() * 900000 + 100000)
     });
 
@@ -377,7 +372,7 @@ export default function AdminPanel({
   };
 
   // Switch Order Status dropdown
-  const handleOrderStatusChange = (orderId: string, value: 'pending' | 'processing' | 'shipped' | 'delivered') => {
+  const handleOrderStatusChange = (orderId: string, value: 'accepted' | 'rejected' | 'packed' | 'picked_up' | 'in_transit' | 'out_for_delivery' | 'delivered') => {
     if (onUpdateOrders) {
       const altered = orders.map(o => o.id === orderId ? { ...o, status: value } : o);
       onUpdateOrders(altered);
@@ -784,7 +779,7 @@ export default function AdminPanel({
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                                   o.status === 'delivered' 
                                     ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                                    : o.status === 'shipped' 
+                                    : o.status === 'in_transit' 
                                       ? 'bg-blue-50 text-blue-600 border-blue-100'
                                       : 'bg-amber-50 text-amber-600 border-amber-100'
                                 }`}>
@@ -880,9 +875,8 @@ export default function AdminPanel({
                           {selectedProduct.subCategory && <p className="text-xs text-slate-500">{selectedProduct.subCategory}</p>}
                         </div>
                         <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Vendor</p>
-                          <p className="mt-2 text-slate-900 font-bold">{selectedProduct.vendorName || 'Unknown vendor'}</p>
-                          <p className="text-xs text-slate-500">{selectedProduct.vendorId || ''}</p>
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Brand</p>
+                          <p className="mt-2 text-slate-900 font-bold">{selectedProduct.brand || 'Unbranded'}</p>
                         </div>
                       </div>
 
@@ -987,122 +981,7 @@ export default function AdminPanel({
 
           {/* ======================= TAB 3: PRODUCTS VIEW & NEW ======================= */}
           {activeTab === 'products' && (
-            <div className="space-y-8 text-left" id="admin_products_management">
-              
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
-                <div>
-                  <h2 className="text-xl font-extrabold text-slate-900">Products Inventory</h2>
-                  <p className="text-xs text-slate-500">Complete listing of localized workshop wares ready for dispatch.</p>
-                </div>
-                <button 
-                  onClick={() => setShowAddProductModal(true)}
-                  className="bg-[#7c3aed] text-white font-extrabold text-xs py-2.5 px-5 rounded-xl shadow-md shadow-violet-100 hover:bg-violet-700 transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4 text-white" /> Create New Product
-                </button>
-              </div>
-
-              {/* Product list table */}
-              <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-                <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                  <p className="text-xs font-bold text-slate-600 font-mono">Catalog listing</p>
-                  <span className="text-[11px] font-mono text-slate-400">Total counted: {dbProducts.length} live models</span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 uppercase font-mono font-extrabold text-[10px] bg-slate-50/50">
-                        <th className="py-3.5 px-4">Item Details</th>
-                        <th className="py-3.5 px-4">Category</th>
-                        <th className="py-3.5 px-4">Price</th>
-                        <th className="py-3.5 px-4">Stock Status</th>
-                        <th className="py-3.5 px-4">Rating</th>
-                        <th className="py-3.5 px-4 text-center">Manage</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                      {isProductsLoading ? (
-                        <tr>
-                          <td colSpan={6} className="py-12 text-center text-slate-500 font-mono text-xs">
-                            Loading database product catalog...
-                          </td>
-                        </tr>
-                      ) : productFetchError ? (
-                        <tr>
-                          <td colSpan={6} className="py-10 text-center text-rose-600 font-bold text-sm">
-                            {productFetchError}
-                          </td>
-                        </tr>
-                      ) : dbProducts.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="py-10 text-center text-slate-400 font-mono text-xs">
-                            No products were returned from the database. Confirm your Supabase schema and table permissions.
-                          </td>
-                        </tr>
-                      ) : (
-                        dbProducts.map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50/20">
-                            <td className="py-3 px-4 flex items-center gap-3">
-                              {p.images && p.images[0] ? (
-                                <img src={p.images[0]} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0 bg-slate-50" referrerPolicy="no-referrer" />
-                              ) : (
-                                <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-400 text-xs font-bold">N/A</div>
-                              )}
-                              <div>
-                                <p className="font-extrabold text-slate-900 leading-tight max-w-sm truncate">{p.name}</p>
-                                <span className="text-[10px] font-mono text-slate-400 leading-none">Vendor: {p.vendorName || 'Unknown'}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold">{p.category || 'Uncategorized'}</span>
-                            </td>
-                            <td className="py-3 px-4 font-mono font-black text-slate-900">
-                              ${p.price.toFixed(2)}
-                              {p.originalPrice != null && <span className="text-[10px] text-slate-400 line-through block font-normal">${p.originalPrice.toFixed(2)}</span>}
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full ${p.stock > 5 ? 'bg-emerald-500' : p.stock > 0 ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'}`} />
-                                <span className="font-bold text-slate-700">{p.stock} units</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 font-bold text-slate-800">
-                              ★ {p.rating?.toFixed?.(1) ?? '4.8'}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <div className="flex flex-wrap items-center justify-center gap-2">
-                                <button 
-                                  onClick={() => setSelectedProduct(p)}
-                                  className="p-1 px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-[10px] border border-slate-200 transition-colors uppercase font-bold"
-                                >
-                                  View
-                                </button>
-                                <button 
-                                  onClick={() => setEditProduct(p)}
-                                  className="p-1 px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-[10px] border border-slate-200 transition-colors uppercase font-bold"
-                                >
-                                  Edit
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteProduct(p.id, p.name)}
-                                  className="p-1 px-2 hover:bg-rose-50 text-rose-600 rounded-lg text-[10px] uppercase font-bold"
-                                  title="Delete Product"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-              </div>
-
-            </div>
+            <ProductManagement />
           )}
 
 
@@ -1232,10 +1111,13 @@ export default function AdminPanel({
                                 onChange={(e) => handleOrderStatusChange(o.id, e.target.value as any)}
                                 className="bg-[#FAF9FF] border border-violet-100 text-[#7c3aed] text-[11px] font-bold rounded-lg py-1.5 px-2.5 focus:outline-none focus:ring-1 focus:ring-violet-500"
                               >
-                                <option value="pending">Pending confirmation</option>
-                                <option value="processing">Processing workshop</option>
-                                <option value="shipped">Shipped route</option>
-                                <option value="delivered">Delivered safely</option>
+                                <option value="accepted">Accepted</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="packed">Packed</option>
+                                <option value="picked_up">Picked Up</option>
+                                <option value="in_transit">In Transit</option>
+                                <option value="out_for_delivery">Out for Delivery</option>
+                                <option value="delivered">Delivered</option>
                               </select>
                             </td>
                           </tr>
@@ -1647,12 +1529,12 @@ export default function AdminPanel({
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500">Artisan Author Name</label>
+                <label className="block text-[11px] font-bold text-slate-500">Brand Name</label>
                 <input 
                   type="text" 
-                  value={newProd.vendorName}
-                  onChange={(e) => setNewProd({ ...newProd, vendorName: e.target.value })}
-                  placeholder="Denver Pottery Lab"
+                  value={newProd.brand || ''}
+                  onChange={(e) => setNewProd({ ...newProd, brand: e.target.value })}
+                  placeholder="e.g. ShopeValley"
                   className="w-full text-xs border border-slate-200 rounded-xl py-2 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
               </div>

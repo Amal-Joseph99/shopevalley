@@ -36,8 +36,6 @@ interface HeaderProps {
   onNavigate: (path: string, options?: any) => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  locationDistance: number;
-  setLocationDistance: (d: number) => void;
   selectedCategoryFilter: string;
   setSelectedCategoryFilter: (cat: string) => void;
   currentUser: LoggedUser | null;
@@ -51,8 +49,6 @@ export default function Header({
   onNavigate,
   searchQuery,
   setSearchQuery,
-  locationDistance,
-  setLocationDistance,
   selectedCategoryFilter,
   setSelectedCategoryFilter,
   currentUser,
@@ -385,23 +381,6 @@ export default function Header({
                       onChange={(e) => setEditCountry(e.target.value)}
                       className="w-full border border-slate-200 rounded-md p-1.5 text-xs focus:ring-1 focus:ring-[#2E7D32] focus:outline-none bg-slate-50/50"
                       placeholder="e.g. India"
-                    />
-                  </div>
-
-                  {/* Range Slider */}
-                  <div className="pt-2">
-                    <div className="flex justify-between items-center text-[10px] font-mono text-slate-405 uppercase tracking-wide font-bold mb-1">
-                      <span>Artisan Distance range:</span>
-                      <span className="text-[#2E7D32] text-xs font-black font-sans">{locationDistance} miles</span>
-                    </div>
-                    <input 
-                      type="range"
-                      min="5"
-                      max="1000"
-                      step="5"
-                      value={locationDistance}
-                      onChange={(e) => setLocationDistance(parseInt(e.target.value))}
-                      className="w-full accent-[#2E7D32] h-1.5 bg-slate-200 rounded-lg cursor-pointer"
                     />
                   </div>
 

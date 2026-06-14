@@ -138,8 +138,8 @@ export default function OrderTracker({ orders, initialOrderId = '' }: OrderTrack
                     <RefreshCw className="w-3 h-3 animate-spin text-slate-950 font-bold" />
                   </span>
                   <div className="text-xs">
-                    <h4 className="font-bold text-slate-950">Preparing in Artisan Custom workshop</h4>
-                    <p className="text-slate-500 mt-0.5">Each vendor is individually hand-packing and boxing items.</p>
+                    <h4 className="font-bold text-slate-950">Order Being Packed</h4>
+                    <p className="text-slate-500 mt-0.5">Your items are being carefully packed for shipment.</p>
                     <span className="text-[10px] font-mono text-amber-700 font-bold mt-1 block">Current Phase: Active Packaging</span>
                   </div>
                 </div>
