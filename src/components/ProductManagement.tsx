@@ -78,6 +78,63 @@ function buildProductSlug(name: string, sku: string): string {
   return `${base}-${sku.toLowerCase()}`;
 }
 
+const MAX_IMAGE_SIZE_BYTES = 45 * 1024 * 1024;
+
+function cropImageToSquare(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new window.Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      const cropSize = Math.min(img.width, img.height);
+      const sx = (img.width - cropSize) / 2;
+      const sy = (img.height - cropSize) / 2;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cropSize;
+      canvas.height = cropSize;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not process image'));
+        return;
+      }
+
+      ctx.drawImage(img, sx, sy, cropSize, cropSize, 0, 0, cropSize, cropSize);
+
+      const outputType =
+        file.type === 'image/png' ? 'image/png' :
+        file.type === 'image/webp' ? 'image/webp' :
+        'image/jpeg';
+      const quality = outputType === 'image/jpeg' ? 0.92 : undefined;
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Could not crop image'));
+            return;
+          }
+
+          const ext = outputType === 'image/png' ? '.png' : outputType === 'image/webp' ? '.webp' : '.jpg';
+          const baseName = file.name.replace(/\.[^/.]+$/, '') || 'image';
+          resolve(new File([blob], `${baseName}-square${ext}`, { type: outputType }));
+        },
+        outputType,
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Could not read image'));
+    };
+
+    img.src = objectUrl;
+  });
+}
+
 // ─── IMAGE UPLOAD ITEM ───────────────────────────────────────────────
 interface UploadingImage {
   file: File;
@@ -257,18 +314,6 @@ export default function ProductManagement() {
   }, [sizeType, sizes, colours, regenerateVariants]);
 
   // ═══ IMAGE HANDLING ═══
-  const validateSquareImage = (file: File): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const img = new window.Image();
-      img.onload = () => {
-        URL.revokeObjectURL(img.src);
-        resolve(img.width === img.height);
-      };
-      img.onerror = () => resolve(false);
-      img.src = URL.createObjectURL(file);
-    });
-  };
-
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -278,29 +323,39 @@ export default function ProductManagement() {
 
     for (const file of selected) {
       if (!file.type.startsWith('image/')) continue;
-      if (file.size > 5 * 1024 * 1024) continue;
 
-      const isSquare = await validateSquareImage(file);
-      if (!isSquare) {
-        const errorItem: UploadingImage = {
+      if (file.size > MAX_IMAGE_SIZE_BYTES) {
+        setBaseImages(prev => [...prev, {
           file,
           preview: URL.createObjectURL(file),
           progress: 0,
-          error: 'Image must be square (1:1 ratio)'
-        };
-        setBaseImages(prev => [...prev, errorItem]);
+          error: 'Image must be 45MB or smaller'
+        }]);
+        continue;
+      }
+
+      let processedFile: File;
+      let preview: string;
+      try {
+        processedFile = await cropImageToSquare(file);
+        preview = URL.createObjectURL(processedFile);
+      } catch {
+        setBaseImages(prev => [...prev, {
+          file,
+          preview: URL.createObjectURL(file),
+          progress: 0,
+          error: 'Could not process image'
+        }]);
         continue;
       }
 
       const item: UploadingImage = {
-        file,
-        preview: URL.createObjectURL(file),
+        file: processedFile,
+        preview,
         progress: 0
       };
       setBaseImages(prev => [...prev, item]);
-
-      // Simulate upload progress + actual upload
-      uploadImageWithProgress(file, baseImages.length + selected.indexOf(file));
+      uploadImageWithProgress(processedFile, baseImages.length + selected.indexOf(file));
     }
 
     if (imageInputRef.current) imageInputRef.current.value = '';
@@ -1137,7 +1192,7 @@ export default function ProductManagement() {
 
           {/* Requirements notice */}
           <div className="bg-violet-50 border border-violet-100 rounded-xl p-3 text-xs text-violet-700 font-medium">
-            <strong>Requirements:</strong> Minimum 3 images, maximum 10. All images must be <strong>square (1:1 ratio)</strong> — e.g. 1000x1000px or 500x500px. Max 5MB per file.
+            <strong>Requirements:</strong> Minimum 3 images, maximum 10. Any dimensions accepted — non-square images are <strong>auto-cropped to 1:1</strong> (center crop). Max 45MB per file.
           </div>
 
           {/* Image Upload Area */}
@@ -1172,7 +1227,7 @@ export default function ProductManagement() {
               >
                 <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-xs font-bold text-slate-600">Click to upload product images</p>
-                <p className="text-[10px] text-slate-400 mt-1">Square images only (1:1) • JPG, PNG, WEBP • Max 5MB</p>
+                <p className="text-[10px] text-slate-400 mt-1">Any size • Auto-cropped to 1:1 • JPG, PNG, WEBP • Max 45MB</p>
               </div>
             )}
 
